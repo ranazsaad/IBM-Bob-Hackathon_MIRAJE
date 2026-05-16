@@ -1,4 +1,4 @@
-# DevPilot AI 🚀
+# IBM-Bob-Hackathon-MIRAJE🚀
 
 **Your AI Engineering Teammate for Hackathons and Beyond**
 
@@ -404,6 +404,6 @@ DevPilot AI was built as a demonstration of modern AI-powered development tools.
 
 **Ready to revolutionize your development workflow? Get started now! 🚀**
 
----
 
 Made with ❤️ by the DevPilot AI Team
+
