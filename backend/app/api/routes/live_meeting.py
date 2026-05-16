@@ -155,7 +155,7 @@ async def get_stt_status():
         "watson_stt_available": watson_stt_service.is_available,
         "watsonx_embeddings_available": settings.watsonx_available,
         "bob_api_configured": bool(settings.OPENAI_API_KEY),
-        "bob_endpoint": settings.OPENAI_API_BASE,
-        "active_llm_model": settings.OPENAI_MODEL,
-        "active_embedding_model": settings.OPENAI_EMBEDDING_MODEL,
+        "bob_endpoint": settings.effective_api_base or settings.BOB_API_BASE,
+        "active_llm_model": settings.WATSONX_MODEL_ID,
+        "active_embedding_model": settings.WATSONX_EMBEDDING_MODEL,
     }

@@ -34,7 +34,7 @@ class WatsonSTTService:
             stt.set_service_url(settings.WATSON_STT_URL)
             stt.set_default_headers({"x-watson-learning-opt-out": "true"})
             self._client = stt
-            print("[WatsonSTT] IBM Watson Speech-to-Text initialized ✓")
+            print("[WatsonSTT] IBM Watson Speech-to-Text initialized [OK]")
         except Exception as e:
             print(f"[WatsonSTT] Init failed: {e} — STT will be unavailable")
             self._available = False

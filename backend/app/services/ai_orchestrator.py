@@ -1,26 +1,23 @@
-"""AI Orchestrator - coordinates AI agents and RAG"""
+"""AI Orchestrator - coordinates AI agents and RAG using IBM watsonx.ai"""
 
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
-from openai import AsyncOpenAI
 
 from app.config import settings
 from app.services.rag_engine import RAGEngine
+from app.services.ibm_watsonx_client import create_async_watsonx_client
 from app.api.schemas.responses import ModeQueryResponse
 
 
 class AIOrchestrator:
-    """Orchestrates AI agents and RAG pipeline"""
+    """Orchestrates AI agents and RAG pipeline using IBM Granite models"""
     
     def __init__(self, db: Session):
-        """Initialize AI orchestrator"""
+        """Initialize AI orchestrator with IBM watsonx.ai"""
         self.db = db
         self.rag_engine = RAGEngine(db)
-        # Build OpenAI client — use official API by default
-        client_kwargs = {"api_key": settings.OPENAI_API_KEY}
-        if settings.effective_api_base:
-            client_kwargs["base_url"] = settings.effective_api_base
-        self.client = AsyncOpenAI(**client_kwargs)
+        # Use IBM watsonx.ai client with Granite models
+        self.client = create_async_watsonx_client()
     
     async def process_query(
         self,
@@ -121,7 +118,7 @@ User Request: {query}
 Generate a Mermaid diagram and explanation for this request."""
 
         response = await self.client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
+            model=settings.WATSONX_MODEL_ID,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -180,7 +177,7 @@ User Request: {query}
 Provide detailed analysis and recommendations."""
 
         response = await self.client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
+            model=settings.WATSONX_MODEL_ID,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -240,7 +237,7 @@ User Request: {query}
 Generate comprehensive tests."""
 
         response = await self.client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
+            model=settings.WATSONX_MODEL_ID,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -296,7 +293,7 @@ User Request: {query}
 Generate complete deployment configuration."""
 
         response = await self.client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
+            model=settings.WATSONX_MODEL_ID,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -351,7 +348,7 @@ User Request: {query}
 Generate comprehensive documentation."""
 
         response = await self.client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
+            model=settings.WATSONX_MODEL_ID,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}

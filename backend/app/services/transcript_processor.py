@@ -1,29 +1,26 @@
-"""Meeting transcript processor service"""
+"""Meeting transcript processor service using IBM watsonx.ai"""
 
 import re
 import uuid
 from typing import Dict, Any, List
 from datetime import datetime
 from sqlalchemy.orm import Session
-from openai import AsyncOpenAI
 
 from app.config import settings
 from app.database.models import Workspace
 from app.api.schemas.responses import TranscriptAnalyzeResponse
 from app.api.schemas.workspace import UserStory, EngineeringTicket
+from app.services.ibm_watsonx_client import create_async_watsonx_client
 
 
 class TranscriptProcessor:
-    """Service for processing meeting transcripts"""
+    """Service for processing meeting transcripts using IBM Granite models"""
     
     def __init__(self, db: Session):
-        """Initialize transcript processor"""
+        """Initialize transcript processor with IBM watsonx.ai"""
         self.db = db
-        # Build OpenAI client — use official API by default
-        client_kwargs = {"api_key": settings.OPENAI_API_KEY}
-        if settings.effective_api_base:
-            client_kwargs["base_url"] = settings.effective_api_base
-        self.client = AsyncOpenAI(**client_kwargs)
+        # Use IBM watsonx.ai client with Granite models
+        self.client = create_async_watsonx_client()
     
     async def process(
         self,
@@ -115,7 +112,7 @@ List each requirement as a clear, concise statement. Focus on:
 Format as a numbered list."""
 
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=settings.WATSONX_MODEL_ID,
                 messages=[
                     {"role": "system", "content": "You are a product manager extracting requirements from meeting notes."},
                     {"role": "user", "content": prompt}
@@ -169,7 +166,7 @@ Generate 3-5 user stories with:
 Format as JSON array."""
 
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=settings.WATSONX_MODEL_ID,
                 messages=[
                     {"role": "system", "content": "You are a product manager creating user stories."},
                     {"role": "user", "content": prompt}
@@ -249,7 +246,7 @@ For each ticket provide:
 Format as JSON array."""
 
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=settings.WATSONX_MODEL_ID,
                 messages=[
                     {"role": "system", "content": "You are a technical lead creating engineering tickets."},
                     {"role": "user", "content": prompt}
@@ -318,7 +315,7 @@ Summary should include:
 Keep it under 200 words."""
 
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=settings.WATSONX_MODEL_ID,
                 messages=[
                     {"role": "system", "content": "You are an executive assistant summarizing meetings."},
                     {"role": "user", "content": prompt}
@@ -333,4 +330,4 @@ Keep it under 200 words."""
             print(f"Error generating summary: {e}")
             return "Summary generation failed"
 
-# Made with Bob
+# Made with IBM watsonx.ai

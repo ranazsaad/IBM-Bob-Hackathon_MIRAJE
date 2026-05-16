@@ -116,7 +116,7 @@ Respond ONLY with valid JSON, no extra text."""
 
         try:
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=settings.WATSONX_MODEL_ID,
                 messages=[
                     {"role": "system", "content": "You are a meeting analysis assistant. Always respond with valid JSON only."},
                     {"role": "user",   "content": prompt},
@@ -141,7 +141,7 @@ Respond ONLY with valid JSON, no extra text."""
         """Remove repetitions / filler words from raw STT output."""
         try:
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=settings.WATSONX_MODEL_ID,
                 messages=[
                     {"role": "system", "content": "You are an expert transcription editor. Clean the following raw speech-to-text output: fix repetitions, filler words ('um', 'uh'), and obvious errors. Keep all content but make it readable. Do NOT summarise."},
                     {"role": "user",   "content": raw[:6000]},
@@ -171,7 +171,7 @@ Return a numbered list of clear, concrete requirements. Focus on:
 Format each as a single, actionable sentence."""
 
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=settings.WATSONX_MODEL_ID,
                 messages=[
                     {"role": "system", "content": "You are a senior product manager extracting requirements from meeting notes."},
                     {"role": "user",   "content": prompt},
@@ -215,7 +215,7 @@ Generate 4-6 user stories as a JSON array where each object has:
 Respond ONLY with the JSON array."""
 
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=settings.WATSONX_MODEL_ID,
                 messages=[
                     {"role": "system", "content": "You are a product manager. Always respond with valid JSON only."},
                     {"role": "user",   "content": prompt},
@@ -256,7 +256,7 @@ Generate 5-8 technical implementation tickets as a JSON array where each object 
 Respond ONLY with the JSON array."""
 
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=settings.WATSONX_MODEL_ID,
                 messages=[
                     {"role": "system", "content": "You are a tech lead. Always respond with valid JSON only."},
                     {"role": "user",   "content": prompt},
@@ -277,7 +277,7 @@ Respond ONLY with the JSON array."""
         """Generate a concise meeting summary."""
         try:
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=settings.WATSONX_MODEL_ID,
                 messages=[
                     {"role": "system", "content": "You are an executive assistant writing concise meeting summaries."},
                     {"role": "user",   "content": f"""Summarise this meeting in under 200 words.
@@ -319,7 +319,7 @@ Context: {context or 'Software project'}
 Respond ONLY with valid JSON."""
 
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=settings.WATSONX_MODEL_ID,
                 messages=[
                     {"role": "system", "content": "You are a software architect. Always respond with valid JSON only."},
                     {"role": "user",   "content": prompt},
