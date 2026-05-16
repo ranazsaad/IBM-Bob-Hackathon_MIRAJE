@@ -6,18 +6,17 @@ import json
 from typing import List, Dict, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
-from openai import AsyncOpenAI
 
 from app.config import settings
 from app.database.models import Workspace
+from app.services.ibm_watsonx_client import AsyncIBMWatsonxClient
 
 
 class LiveMeetingService:
     """
     Handles live meeting transcription processing.
 
-    The browser sends accumulated speech-recognition text to this service
-    which then uses GPT to:
+    Uses IBM watsonx.ai (Granite model) to:
       1. Clean / structure the raw transcript
       2. Extract requirements
       3. Generate user stories
@@ -26,11 +25,8 @@ class LiveMeetingService:
 
     def __init__(self, db: Session):
         self.db = db
-        # Bob/Cline: OpenAI-compatible API
-        client_kwargs: Dict[str, Any] = {"api_key": settings.OPENAI_API_KEY}
-        if settings.effective_api_base:
-            client_kwargs["base_url"] = settings.effective_api_base
-        self.client = AsyncOpenAI(**client_kwargs)
+        # IBM watsonx.ai — OpenAI-compatible async client
+        self.client = AsyncIBMWatsonxClient()
 
     # ------------------------------------------------------------------ #
     #  Public API                                                          #
