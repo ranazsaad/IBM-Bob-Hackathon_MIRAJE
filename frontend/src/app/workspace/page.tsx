@@ -360,10 +360,12 @@ function ResultDisplay({ item, mode }: { item: QueryHistoryItem; mode: AIMode })
 // ─── Meeting Results Panel ─────────────────────────────────────────────────────
 
 function MeetingResultsPanel({
-  metadata, onImplement,
+  metadata, onImplement, onScaffoldProject, scaffoldingProject
 }: {
   metadata: any;
   onImplement: (query: string) => void;
+  onScaffoldProject: (reqs: string[], tickets: any[]) => void;
+  scaffoldingProject: boolean;
 }) {
   const [expanded, setExpanded] = useState(true);
   const requirements: string[] = metadata.requirements || [];
@@ -431,7 +433,7 @@ function MeetingResultsPanel({
                     <p className="text-xs text-gray-400 line-clamp-2">{ticket.description}</p>
                     <button
                       onClick={() => onImplement(`Help me start implementing this ticket: ${ticket.title}. Description: ${ticket.description}`)}
-                      className="mt-2 w-full text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-900/20 hover:bg-indigo-900/40 border border-indigo-700/30 py-1 rounded-lg transition-colors"
+                      className="mt-2 w-full text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-900/20 hover:bg-indigo-900/40 border border-indigo-700/30 py-2 rounded-lg transition-colors"
                     >
                       Start Implementing
                     </button>
@@ -440,6 +442,21 @@ function MeetingResultsPanel({
               </div>
             </div>
           )}
+
+          {/* Scaffold Full Project Button */}
+          <div className="pt-4 border-t border-gray-800">
+            <button
+              onClick={() => onScaffoldProject(requirements, tickets)}
+              disabled={scaffoldingProject}
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-emerald-500 text-white px-6 py-3.5 rounded-xl font-medium hover:opacity-90 transition-all shadow-lg shadow-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {scaffoldingProject ? (
+                <><Loader2 className="w-5 h-5 animate-spin" />Scaffolding Full Project...</>
+              ) : (
+                <><FolderGit2 className="w-5 h-5" />Scaffold Entire Project in VS Code</>
+              )}
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -466,6 +483,11 @@ function WorkspaceContent() {
   const [showHistory, setShowHistory] = useState(false);
   const [vscodeLoading, setVscodeLoading] = useState(false);
   const [vscodeStatus, setVscodeStatus] = useState<string | null>(null);
+  const [scaffoldingProject, setScaffoldingProject] = useState(false);
+  const [setupGuide, setSetupGuide] = useState<string | null>(null);
+  const [debugErrorText, setDebugErrorText] = useState("");
+  const [isDebugging, setIsDebugging] = useState(false);
+  const [debugResult, setDebugResult] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const modeConfig = MODES.find((m) => m.id === currentMode)!;
@@ -491,6 +513,41 @@ function WorkspaceContent() {
       setVscodeStatus(`❌ ${err.message || "Failed to open in VS Code"}`);
     } finally {
       setVscodeLoading(false);
+    }
+  };
+
+  const handleScaffoldProject = async (requirements: string[], tickets: any[]) => {
+    if (!workspace) return;
+    setScaffoldingProject(true);
+    setError(null);
+    setSetupGuide(null);
+    setDebugResult(null);
+    try {
+      const result: any = await api.scaffoldProject(workspace.workspace_id, requirements, tickets);
+      if (result.setup_guide) {
+        setSetupGuide(result.setup_guide);
+      }
+      if (result.vscode_url) {
+        window.location.href = result.vscode_url;
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to scaffold project.");
+    } finally {
+      setScaffoldingProject(false);
+    }
+  };
+
+  const handleDebugError = async () => {
+    if (!workspace || !debugErrorText.trim()) return;
+    setIsDebugging(true);
+    setDebugResult(null);
+    try {
+      const result: any = await api.debugError(workspace.workspace_id, debugErrorText);
+      setDebugResult(result.action);
+    } catch (err: any) {
+      setDebugResult(`❌ Error debugging: ${err.message}`);
+    } finally {
+      setIsDebugging(false);
     }
   };
 
@@ -744,7 +801,64 @@ function WorkspaceContent() {
                   setMode("development");
                   handleSubmit(q);
                 }}
+                onScaffoldProject={handleScaffoldProject}
+                scaffoldingProject={scaffoldingProject}
               />
+            )}
+
+            {/* Setup Guide & Debugging Panel */}
+            {setupGuide && (
+              <div className="mb-6 bg-gray-900 border border-green-700/40 rounded-2xl overflow-hidden animate-fade-in">
+                <div className="px-5 py-3 bg-green-900/30 border-b border-green-700/40 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                  <span className="text-sm font-semibold text-green-200">Project Scaffolded Successfully</span>
+                </div>
+                
+                <div className="p-5 space-y-6">
+                  {/* Setup Guide */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-blue-400" /> Step-by-Step Guide
+                    </h3>
+                    <div className="prose prose-sm prose-invert max-w-none bg-gray-800/50 p-4 rounded-xl border border-gray-700/50">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{setupGuide}</ReactMarkdown>
+                    </div>
+                  </div>
+
+                  {/* Bob Error Assistant */}
+                  <div className="border-t border-gray-800 pt-6">
+                    <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-400" /> Faced an error in VS Code?
+                    </h3>
+                    <p className="text-xs text-gray-400 mb-3">
+                      Paste your terminal error below. Bob will read your local project files and tell you exactly how to fix it.
+                    </p>
+                    <textarea
+                      value={debugErrorText}
+                      onChange={(e) => setDebugErrorText(e.target.value)}
+                      placeholder="Paste terminal output here..."
+                      rows={4}
+                      className="w-full bg-gray-800 border border-gray-600 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 outline-none focus:border-amber-500/70 transition-colors resize-y mb-3"
+                    />
+                    <button
+                      onClick={handleDebugError}
+                      disabled={!debugErrorText.trim() || isDebugging}
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-600 to-orange-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-all disabled:opacity-50"
+                    >
+                      {isDebugging ? <><Loader2 className="w-4 h-4 animate-spin" /> Bob is debugging...</> : <><Zap className="w-4 h-4" /> Ask Bob to Fix Error</>}
+                    </button>
+
+                    {debugResult && (
+                      <div className="mt-4 p-4 bg-gray-800 border border-amber-700/40 rounded-xl">
+                        <h4 className="text-xs font-semibold text-amber-400 mb-2 uppercase tracking-wider">Bob's Required Action</h4>
+                        <div className="prose prose-sm prose-invert max-w-none">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{debugResult}</ReactMarkdown>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Error banner */}

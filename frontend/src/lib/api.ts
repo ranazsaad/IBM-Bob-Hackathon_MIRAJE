@@ -256,6 +256,27 @@ class APIClient {
   async checkVSCode() {
     return this.request("/vscode/check-vscode");
   }
+
+  async scaffoldProject(workspaceId: string, requirements: string[], tickets: any[]) {
+    return this.request("/vscode/scaffold-project", {
+      method: "POST",
+      body: JSON.stringify({
+        workspace_id: workspaceId,
+        requirements: requirements,
+        tickets: tickets,
+      }),
+    });
+  }
+
+  async debugError(workspaceId: string, errorText: string) {
+    return this.request("/vscode/debug-error", {
+      method: "POST",
+      body: JSON.stringify({
+        workspace_id: workspaceId,
+        error_text: errorText,
+      }),
+    });
+  }
 }
 
 // Export singleton instance
