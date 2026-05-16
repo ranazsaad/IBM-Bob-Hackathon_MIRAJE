@@ -5,12 +5,15 @@ import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
   Sparkles, Code, TestTube, Rocket, BookOpen, FileText,
   Send, ArrowLeft, Copy, Download, Check, Loader2,
   ChevronRight, GitBranch, Star, Files, Zap, History,
   AlertCircle, X, RefreshCw, Eye, Layout, ClipboardList,
-  CheckCircle2, ChevronDown, ChevronUp,
+  CheckCircle2, ChevronDown, ChevronUp, ExternalLink, FolderGit2,
 } from "lucide-react";
 import { useStore, AIMode, QueryHistoryItem } from "@/lib/store";
 import { api, ModeQueryRequest } from "@/lib/api";
@@ -246,7 +249,98 @@ function ResultDisplay({ item, mode }: { item: QueryHistoryItem; mode: AIMode })
         </div>
       ) : (
         <div className="bg-gray-900 rounded-xl border border-gray-700 p-6 max-h-[60vh] overflow-auto prose prose-invert prose-sm max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
+            components={{
+              code({ node, inline, className, children, ...props }) {
+                const match = /language-(\w+)/.exec(className || '');
+                const language = match ? match[1] : '';
+                
+                return !inline && language ? (
+                  <div className="relative group my-4">
+                    <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(String(children).replace(/\n$/, ''));
+                        }}
+                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-white px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+                      >
+                        <Copy className="w-3 h-3" />
+                        Copy
+                      </button>
+                    </div>
+                    <SyntaxHighlighter
+                      style={vscDarkPlus}
+                      language={language}
+                      PreTag="div"
+                      customStyle={{
+                        margin: 0,
+                        borderRadius: '0.5rem',
+                        background: '#1e1e1e',
+                        padding: '1rem',
+                      }}
+                      {...props}
+                    >
+                      {String(children).replace(/\n$/, '')}
+                    </SyntaxHighlighter>
+                  </div>
+                ) : (
+                  <code className="bg-gray-800 text-gray-200 px-1.5 py-0.5 rounded text-sm" {...props}>
+                    {children}
+                  </code>
+                );
+              },
+              pre({ children }) {
+                return <>{children}</>;
+              },
+              h1({ children }) {
+                return <h1 className="text-2xl font-bold text-white mt-6 mb-4">{children}</h1>;
+              },
+              h2({ children }) {
+                return <h2 className="text-xl font-bold text-white mt-5 mb-3">{children}</h2>;
+              },
+              h3({ children }) {
+                return <h3 className="text-lg font-semibold text-white mt-4 mb-2">{children}</h3>;
+              },
+              p({ children }) {
+                return <p className="text-gray-300 leading-relaxed mb-4">{children}</p>;
+              },
+              ul({ children }) {
+                return <ul className="list-disc list-inside text-gray-300 space-y-2 mb-4">{children}</ul>;
+              },
+              ol({ children }) {
+                return <ol className="list-decimal list-inside text-gray-300 space-y-2 mb-4">{children}</ol>;
+              },
+              li({ children }) {
+                return <li className="text-gray-300">{children}</li>;
+              },
+              a({ href, children }) {
+                return <a href={href} className="text-blue-400 hover:text-blue-300 underline" target="_blank" rel="noopener noreferrer">{children}</a>;
+              },
+              blockquote({ children }) {
+                return <blockquote className="border-l-4 border-gray-600 pl-4 italic text-gray-400 my-4">{children}</blockquote>;
+              },
+              table({ children }) {
+                return <div className="overflow-x-auto my-4"><table className="min-w-full border border-gray-700">{children}</table></div>;
+              },
+              thead({ children }) {
+                return <thead className="bg-gray-800">{children}</thead>;
+              },
+              tbody({ children }) {
+                return <tbody className="divide-y divide-gray-700">{children}</tbody>;
+              },
+              tr({ children }) {
+                return <tr>{children}</tr>;
+              },
+              th({ children }) {
+                return <th className="px-4 py-2 text-left text-sm font-semibold text-white">{children}</th>;
+              },
+              td({ children }) {
+                return <td className="px-4 py-2 text-sm text-gray-300">{children}</td>;
+              },
+            }}
+          >
             {item.result.content}
           </ReactMarkdown>
         </div>
@@ -364,13 +458,41 @@ function WorkspaceContent() {
     currentResult, setCurrentResult,
     isQuerying, setIsQuerying,
     error, setError,
+    currentConversation, setCurrentConversation,
+    conversations, setConversations,
   } = useStore();
 
   const [query, setQuery] = useState("");
   const [showHistory, setShowHistory] = useState(false);
+  const [vscodeLoading, setVscodeLoading] = useState(false);
+  const [vscodeStatus, setVscodeStatus] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const modeConfig = MODES.find((m) => m.id === currentMode)!;
+
+  // Handle VS Code integration
+  const handleOpenInVSCode = async () => {
+    if (!workspace) return;
+    
+    setVscodeLoading(true);
+    setVscodeStatus(null);
+    
+    try {
+      const result: any = await api.openWorkspace(workspace.workspace_id);
+      
+      if (result.vscode_url) {
+        // Open VS Code
+        window.location.href = result.vscode_url;
+        setVscodeStatus(`✅ Opening in VS Code: ${result.workspace_path}`);
+      } else {
+        setVscodeStatus(`✅ ${result.message}`);
+      }
+    } catch (err: any) {
+      setVscodeStatus(`❌ ${err.message || "Failed to open in VS Code"}`);
+    } finally {
+      setVscodeLoading(false);
+    }
+  };
 
   // Load workspace from URL params if not in store
   useEffect(() => {
@@ -402,12 +524,34 @@ function WorkspaceContent() {
     setQuery("");
 
     try {
+      // Save user message to conversation
+      if (currentConversation) {
+        await api.addMessage(currentConversation.id, {
+          role: "user",
+          content: q,
+          metadata: { mode: currentMode },
+        });
+      }
+
       const payload: ModeQueryRequest = {
         workspace_id: workspace.workspace_id,
         query: q,
       };
 
       const response = await api.queryMode(currentMode, payload);
+
+      // Save assistant response to conversation
+      if (currentConversation) {
+        await api.addMessage(currentConversation.id, {
+          role: "assistant",
+          content: response.result.content,
+          metadata: {
+            mode: currentMode,
+            type: response.result.type,
+            suggestions: response.suggestions,
+          },
+        });
+      }
 
       const historyItem: QueryHistoryItem = {
         id: Date.now().toString(),
@@ -550,14 +694,43 @@ function WorkspaceContent() {
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Mode header */}
           <div className={`px-6 py-4 border-b border-gray-800 bg-gradient-to-r ${modeConfig.gradient} bg-opacity-5`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${modeConfig.gradient} flex items-center justify-center shadow-lg ${modeConfig.glow}`}>
-                {modeConfig.icon}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${modeConfig.gradient} flex items-center justify-center shadow-lg ${modeConfig.glow}`}>
+                  {modeConfig.icon}
+                </div>
+                <div>
+                  <h2 className="font-bold text-white">{modeConfig.label} Mode</h2>
+                  <p className="text-xs text-gray-400">{modeConfig.description}</p>
+                </div>
               </div>
-              <div>
-                <h2 className="font-bold text-white">{modeConfig.label} Mode</h2>
-                <p className="text-xs text-gray-400">{modeConfig.description}</p>
-              </div>
+              
+              {/* VS Code Integration Button (only for GitHub workspaces in Development mode) */}
+              {workspace.type === "github" && currentMode === "development" && (
+                <div className="flex flex-col items-end gap-2">
+                  <button
+                    onClick={handleOpenInVSCode}
+                    disabled={vscodeLoading}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors shadow-lg"
+                  >
+                    {vscodeLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Opening...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FolderGit2 className="w-4 h-4" />
+                        <span>Open in VS Code</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </>
+                    )}
+                  </button>
+                  {vscodeStatus && (
+                    <p className="text-xs text-gray-400 max-w-xs text-right">{vscodeStatus}</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

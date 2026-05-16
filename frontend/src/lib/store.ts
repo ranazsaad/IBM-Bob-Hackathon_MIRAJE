@@ -36,6 +36,15 @@ export interface WorkspaceInfo {
   created_at: string;
 }
 
+export interface ConversationInfo {
+  id: string;
+  workspace_id: string;
+  title: string | null;
+  created_at: string;
+  last_updated: string;
+  message_count: number;
+}
+
 interface DevPilotStore {
   // Workspace
   workspace: WorkspaceInfo | null;
@@ -64,6 +73,12 @@ interface DevPilotStore {
   // Error
   error: string | null;
   setError: (e: string | null) => void;
+
+  // Conversations
+  currentConversation: ConversationInfo | null;
+  setCurrentConversation: (c: ConversationInfo | null) => void;
+  conversations: ConversationInfo[];
+  setConversations: (c: ConversationInfo[]) => void;
 }
 
 export const useStore = create<DevPilotStore>((set) => ({
@@ -89,4 +104,9 @@ export const useStore = create<DevPilotStore>((set) => ({
 
   error: null,
   setError: (e) => set({ error: e }),
+
+  currentConversation: null,
+  setCurrentConversation: (c) => set({ currentConversation: c }),
+  conversations: [],
+  setConversations: (c) => set({ conversations: c }),
 }));

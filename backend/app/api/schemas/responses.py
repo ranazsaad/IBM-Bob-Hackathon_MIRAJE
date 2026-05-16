@@ -102,3 +102,39 @@ class WorkspaceResponse(BaseModel):
     file_count: Optional[int] = Field(None, description="Number of files")
 
 # Made with Bob
+
+"""Response schemas"""
+
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any, List
+from datetime import datetime
+
+
+class MessageResponse(BaseModel):
+    """Response schema for a message"""
+    
+    id: str = Field(..., description="Message ID")
+    conversation_id: str = Field(..., description="Conversation ID")
+    role: str = Field(..., description="Message role")
+    content: str = Field(..., description="Message content")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Message metadata")
+    timestamp: datetime = Field(..., description="Message timestamp")
+    
+    class Config:
+        from_attributes = True
+
+
+class ConversationResponse(BaseModel):
+    """Response schema for a conversation"""
+    
+    id: str = Field(..., description="Conversation ID")
+    workspace_id: str = Field(..., description="Workspace ID")
+    title: Optional[str] = Field(None, description="Conversation title")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    last_updated: datetime = Field(..., description="Last update timestamp")
+    message_count: int = Field(..., description="Number of messages")
+    messages: List[MessageResponse] = Field(default_factory=list, description="Conversation messages")
+    
+    class Config:
+        from_attributes = True
+

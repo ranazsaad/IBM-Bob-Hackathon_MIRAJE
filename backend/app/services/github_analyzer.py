@@ -63,9 +63,9 @@ class GitHubAnalyzer:
             total_lines = 0
             languages = {}
             
-            # Process files (limit to 50 for demo)
+            # Process files (increased limits for better file tree)
             file_count = 0
-            max_files = 50 if depth == "shallow" else 200
+            max_files = 500 if depth == "shallow" else 2000
             
             while contents and file_count < max_files:
                 file_content = contents.pop(0)
@@ -74,7 +74,12 @@ class GitHubAnalyzer:
                     # Add directory contents
                     try:
                         contents.extend(repo.get_contents(file_content.path, ref=branch))
-                    except:
+                    except Exception as e:
+                        # Handle rate limits and other errors gracefully
+                        if "rate limit" in str(e).lower():
+                            print(f"[GitHub] Rate limit hit, stopping at {file_count} files")
+                            break
+                        # Skip directories that can't be accessed
                         pass
                 else:
                     # Process file

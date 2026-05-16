@@ -41,6 +41,31 @@ export interface ModeQueryResponse {
   suggestions?: string[];
 }
 
+export interface ConversationResponse {
+  id: string;
+  workspace_id: string;
+  title: string | null;
+  created_at: string;
+  last_updated: string;
+  message_count: number;
+  messages: MessageResponse[];
+}
+
+export interface MessageResponse {
+  id: string;
+  conversation_id: string;
+  role: string;
+  content: string;
+  metadata: Record<string, any> | null;
+  timestamp: string;
+}
+
+export interface MessageCreate {
+  role: string;
+  content: string;
+  metadata?: Record<string, any>;
+}
+
 class APIClient {
   private baseURL: string;
 
@@ -167,6 +192,69 @@ class APIClient {
     }
 
     return queryFn(data);
+  }
+
+  // Conversation Management
+  async createConversation(workspaceId: string, title?: string): Promise<ConversationResponse> {
+    return this.request(`/conversations?workspace_id=${workspaceId}${title ? `&title=${encodeURIComponent(title)}` : ''}`, {
+      method: "POST",
+    });
+  }
+
+  async getConversation(conversationId: string): Promise<ConversationResponse> {
+    return this.request(`/conversations/${conversationId}`);
+  }
+
+  async listConversations(workspaceId: string): Promise<ConversationResponse[]> {
+    return this.request(`/conversations/workspace/${workspaceId}`);
+  }
+
+  async addMessage(conversationId: string, message: MessageCreate): Promise<MessageResponse> {
+    return this.request(`/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(message),
+    });
+  }
+
+  async deleteConversation(conversationId: string) {
+    return this.request(`/conversations/${conversationId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async updateConversationTitle(conversationId: string, title: string) {
+    return this.request(`/conversations/${conversationId}/title?title=${encodeURIComponent(title)}`, {
+      method: "PATCH",
+    });
+  }
+
+  // VS Code Integration
+  async cloneRepo(repoUrl: string, workspacePath?: string) {
+    return this.request("/vscode/clone-repo", {
+      method: "POST",
+      body: JSON.stringify({ repo_url: repoUrl, workspace_path: workspacePath }),
+    });
+  }
+
+  async openFile(filePath: string, workspacePath?: string, lineNumber?: number) {
+    return this.request("/vscode/open-file", {
+      method: "POST",
+      body: JSON.stringify({ file_path: filePath, workspace_path: workspacePath, line_number: lineNumber }),
+    });
+  }
+
+  async openWorkspace(workspaceId: string) {
+    return this.request(`/vscode/open-workspace?workspace_id=${workspaceId}`, {
+      method: "POST",
+    });
+  }
+
+  async listWorkspaceFiles(workspacePath: string) {
+    return this.request(`/vscode/workspace-files?workspace_path=${encodeURIComponent(workspacePath)}`);
+  }
+
+  async checkVSCode() {
+    return this.request("/vscode/check-vscode");
   }
 }
 

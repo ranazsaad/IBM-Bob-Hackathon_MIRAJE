@@ -54,4 +54,22 @@ class ModeQueryRequest(BaseModel):
             }
         }
 
-# Made with Bob
+
+class MessageCreate(BaseModel):
+    """Request schema for creating a message"""
+    
+    role: str = Field(..., description="Message role: user, assistant, or system")
+    content: str = Field(..., description="Message content")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "role": "user",
+                "content": "How do I implement authentication?",
+                "metadata": {"mode": "development"}
+            }
+        }
+
+
+# Made with IBM watsonx.ai
