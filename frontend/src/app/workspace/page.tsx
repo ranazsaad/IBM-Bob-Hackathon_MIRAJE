@@ -130,7 +130,9 @@ function MermaidRenderer({ content }: { content: string }) {
       m.default.render("mermaid-svg-" + Date.now(), diagram)
         .then(({ svg }) => {
           if (ref.current) {
-            ref.current.innerHTML = svg;
+            // Remove any error messages from mermaid output
+            const cleanSvg = svg.replace(/Syntax error in text[\s\S]*?mermaid version[\s\S]*?$/i, '');
+            ref.current.innerHTML = cleanSvg;
             setRendered(true);
           }
         })
@@ -148,7 +150,7 @@ function MermaidRenderer({ content }: { content: string }) {
 
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-700 p-6 overflow-auto">
-      <div ref={ref} className="flex justify-center" />
+      <div ref={ref} className="flex justify-center [&_text]:!fill-gray-200 [&_text]:!font-medium" />
       {!rendered && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
@@ -179,12 +181,15 @@ function ResultDisplay({ item, mode }: { item: QueryHistoryItem; mode: AIMode })
     URL.revokeObjectURL(url);
   };
 
-  const isMermaid = item.result.content.includes("```mermaid") || 
+  const isMermaid = item.result.content.includes("```mermaid") ||
                     item.result.content.includes("graph ") ||
                     item.result.content.includes("sequenceDiagram") ||
                     item.result.content.includes("classDiagram");
 
-  const isCode = item.result.type === "code" || item.result.type === "config";
+  // Only treat as pure code if it's explicitly marked as code/config AND doesn't contain markdown formatting
+  const isCode = (item.result.type === "code" || item.result.type === "config") &&
+                 !item.result.content.includes("```") &&
+                 !item.result.content.includes("#");
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
@@ -248,45 +253,80 @@ function ResultDisplay({ item, mode }: { item: QueryHistoryItem; mode: AIMode })
           />
         </div>
       ) : (
-        <div className="bg-gray-900 rounded-xl border border-gray-700 p-6 max-h-[60vh] overflow-auto prose prose-invert prose-sm max-w-none">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeRaw]}
-            components={{
-              code({ node, inline, className, children, ...props }) {
+        <div className="bg-gray-900/50 rounded-xl border border-gray-700/50 p-8 max-h-[70vh] overflow-auto">
+          <div className="markdown-body">
+            <style dangerouslySetInnerHTML={{__html: `
+              .markdown-body * {
+                background: transparent !important;
+                background-color: transparent !important;
+              }
+              .markdown-body code {
+                background: rgba(31, 41, 55, 0.6) !important;
+                background-color: rgba(31, 41, 55, 0.6) !important;
+              }
+              .markdown-body pre {
+                background: transparent !important;
+                background-color: transparent !important;
+              }
+              .markdown-body pre code {
+                background: transparent !important;
+                background-color: transparent !important;
+              }
+              .markdown-body pre > div {
+                background: #0d1117 !important;
+                background-color: #0d1117 !important;
+              }
+            `}} />
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+              code({ node, className, children, ...props }: any) {
                 const match = /language-(\w+)/.exec(className || '');
                 const language = match ? match[1] : '';
+                const codeString = String(children).replace(/\n$/, '');
+                const inline = !className || !language;
                 
-                return !inline && language ? (
-                  <div className="relative group my-4">
-                    <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(String(children).replace(/\n$/, ''));
+                // Block code with syntax highlighting
+                if (!inline && language) {
+                  return (
+                    <div className="relative group my-6 not-prose">
+                      <div className="absolute right-3 top-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(codeString);
+                          }}
+                          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white px-2.5 py-1.5 bg-gray-800/90 hover:bg-gray-700 rounded-md transition-colors backdrop-blur-sm"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          Copy
+                        </button>
+                      </div>
+                      <SyntaxHighlighter
+                        style={vscDarkPlus as any}
+                        language={language}
+                        PreTag="div"
+                        customStyle={{
+                          margin: 0,
+                          borderRadius: '0.75rem',
+                          background: '#0d1117',
+                          padding: '1.25rem',
+                          border: '1px solid rgba(55, 65, 81, 0.5)',
+                          fontSize: '0.875rem',
+                          lineHeight: '1.6',
                         }}
-                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-white px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+                        showLineNumbers={codeString.split('\n').length > 5}
+                        wrapLines={true}
+                        {...props}
                       >
-                        <Copy className="w-3 h-3" />
-                        Copy
-                      </button>
+                        {codeString}
+                      </SyntaxHighlighter>
                     </div>
-                    <SyntaxHighlighter
-                      style={vscDarkPlus}
-                      language={language}
-                      PreTag="div"
-                      customStyle={{
-                        margin: 0,
-                        borderRadius: '0.5rem',
-                        background: '#1e1e1e',
-                        padding: '1rem',
-                      }}
-                      {...props}
-                    >
-                      {String(children).replace(/\n$/, '')}
-                    </SyntaxHighlighter>
-                  </div>
-                ) : (
-                  <code className="bg-gray-800 text-gray-200 px-1.5 py-0.5 rounded text-sm" {...props}>
+                  );
+                }
+                
+                // Inline code
+                return (
+                  <code className="bg-gray-800/60 text-cyan-300 px-2 py-0.5 rounded-md text-sm font-mono border border-gray-700/50" {...props}>
                     {children}
                   </code>
                 );
@@ -295,62 +335,124 @@ function ResultDisplay({ item, mode }: { item: QueryHistoryItem; mode: AIMode })
                 return <>{children}</>;
               },
               h1({ children }) {
-                return <h1 className="text-2xl font-bold text-white mt-6 mb-4">{children}</h1>;
+                return <h1 className="text-3xl font-bold text-white mt-8 mb-5 pb-3 border-b border-gray-700/50 first:mt-0">{children}</h1>;
               },
               h2({ children }) {
-                return <h2 className="text-xl font-bold text-white mt-5 mb-3">{children}</h2>;
+                return <h2 className="text-2xl font-bold text-white mt-8 mb-4 pb-2 border-b border-gray-700/30">{children}</h2>;
               },
               h3({ children }) {
-                return <h3 className="text-lg font-semibold text-white mt-4 mb-2">{children}</h3>;
+                return <h3 className="text-xl font-semibold text-white mt-6 mb-3">{children}</h3>;
+              },
+              h4({ children }) {
+                return <h4 className="text-lg font-semibold text-gray-200 mt-5 mb-2">{children}</h4>;
+              },
+              h5({ children }) {
+                return <h5 className="text-base font-semibold text-gray-300 mt-4 mb-2">{children}</h5>;
+              },
+              h6({ children }) {
+                return <h6 className="text-sm font-semibold text-gray-400 mt-3 mb-2">{children}</h6>;
               },
               p({ children }) {
-                return <p className="text-gray-300 leading-relaxed mb-4">{children}</p>;
+                return <p className="text-gray-300 leading-relaxed mb-4 text-[15px]">{children}</p>;
               },
               ul({ children }) {
-                return <ul className="list-disc list-inside text-gray-300 space-y-2 mb-4">{children}</ul>;
+                return <ul className="list-disc ml-6 text-gray-300 space-y-2 mb-5 marker:text-gray-500">{children}</ul>;
               },
               ol({ children }) {
-                return <ol className="list-decimal list-inside text-gray-300 space-y-2 mb-4">{children}</ol>;
+                return <ol className="list-decimal ml-6 text-gray-300 space-y-2 mb-5 marker:text-gray-500">{children}</ol>;
               },
               li({ children }) {
-                return <li className="text-gray-300">{children}</li>;
+                return <li className="text-gray-300 leading-relaxed pl-2">{children}</li>;
               },
               a({ href, children }) {
-                return <a href={href} className="text-blue-400 hover:text-blue-300 underline" target="_blank" rel="noopener noreferrer">{children}</a>;
+                return (
+                  <a
+                    href={href}
+                    className="text-blue-400 hover:text-blue-300 underline decoration-blue-400/30 hover:decoration-blue-300 transition-colors"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {children}
+                  </a>
+                );
               },
               blockquote({ children }) {
-                return <blockquote className="border-l-4 border-gray-600 pl-4 italic text-gray-400 my-4">{children}</blockquote>;
+                return (
+                  <blockquote className="border-l-4 border-blue-500/50 bg-gray-800/30 pl-5 pr-4 py-3 italic text-gray-400 my-5 rounded-r-lg">
+                    {children}
+                  </blockquote>
+                );
+              },
+              strong({ children }) {
+                return <strong className="font-semibold text-white">{children}</strong>;
+              },
+              em({ children }) {
+                return <em className="italic text-gray-300">{children}</em>;
+              },
+              hr() {
+                return <hr className="border-gray-700/50 my-8" />;
               },
               table({ children }) {
-                return <div className="overflow-x-auto my-4"><table className="min-w-full border border-gray-700">{children}</table></div>;
+                return (
+                  <div className="overflow-x-auto my-6 rounded-lg border border-gray-700/50">
+                    <table className="min-w-full divide-y divide-gray-700/50">
+                      {children}
+                    </table>
+                  </div>
+                );
               },
               thead({ children }) {
-                return <thead className="bg-gray-800">{children}</thead>;
+                return <thead className="bg-gray-800/50">{children}</thead>;
               },
               tbody({ children }) {
-                return <tbody className="divide-y divide-gray-700">{children}</tbody>;
+                return <tbody className="divide-y divide-gray-700/30 bg-gray-900/20">{children}</tbody>;
               },
               tr({ children }) {
-                return <tr>{children}</tr>;
+                return <tr className="hover:bg-gray-800/30 transition-colors">{children}</tr>;
               },
               th({ children }) {
-                return <th className="px-4 py-2 text-left text-sm font-semibold text-white">{children}</th>;
+                return <th className="px-5 py-3 text-left text-sm font-semibold text-white">{children}</th>;
               },
               td({ children }) {
-                return <td className="px-4 py-2 text-sm text-gray-300">{children}</td>;
+                return <td className="px-5 py-3 text-sm text-gray-300">{children}</td>;
               },
             }}
           >
-            {item.result.content}
-          </ReactMarkdown>
+              {item.result.content}
+            </ReactMarkdown>
+          </div>
         </div>
       )}
 
       {/* Explanation */}
       {item.result.explanation && (
-        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-4">
-          <p className="text-xs text-gray-400 font-medium mb-2 uppercase tracking-wider">Explanation</p>
-          <p className="text-sm text-gray-300 leading-relaxed">{item.result.explanation}</p>
+        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-1 h-4 bg-blue-500 rounded-full"></div>
+            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Explanation</p>
+          </div>
+          <div className="prose prose-invert prose-sm max-w-none">
+            <ReactMarkdown
+              className="text-sm text-gray-300 leading-relaxed space-y-3"
+              components={{
+                p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+                ul: ({ children }) => <ul className="list-disc list-inside space-y-2 ml-2">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal list-inside space-y-2 ml-2">{children}</ol>,
+                li: ({ children }) => <li className="text-gray-300 leading-relaxed">{children}</li>,
+                strong: ({ children }) => <strong className="text-blue-400 font-semibold">{children}</strong>,
+                em: ({ children }) => <em className="text-cyan-400">{children}</em>,
+                code: ({ children }) => (
+                  <code className="bg-gray-900/60 text-cyan-400 px-1.5 py-0.5 rounded text-xs font-mono">
+                    {children}
+                  </code>
+                ),
+                h3: ({ children }) => <h3 className="text-base font-semibold text-gray-200 mt-4 mb-2">{children}</h3>,
+                h4: ({ children }) => <h4 className="text-sm font-semibold text-gray-300 mt-3 mb-2">{children}</h4>,
+              }}
+            >
+              {item.result.explanation}
+            </ReactMarkdown>
+          </div>
         </div>
       )}
     </div>

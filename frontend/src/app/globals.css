@@ -103,14 +103,7 @@
   animation: fadeIn 0.3s ease-out;
 }
 
-/* Code block styling */
-pre {
-  @apply bg-secondary p-4 rounded-lg overflow-x-auto;
-}
-
-code {
-  @apply bg-secondary px-1 py-0.5 rounded text-sm;
-}
+/* Code block styling - removed to prevent conflicts with custom markdown rendering */
 
 /* Mermaid diagram container */
 .mermaid {
