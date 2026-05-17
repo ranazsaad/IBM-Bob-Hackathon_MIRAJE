@@ -49,7 +49,7 @@ DevPilot AI transforms how developers interact with codebases by providing **5 s
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.11+
@@ -289,7 +289,7 @@ docker-compose -f docker-compose.prod.yml up -d
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ### Backend Tests
 ```bash
@@ -331,7 +331,7 @@ MIT License - see [LICENSE](LICENSE) file for details
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **OpenAI** - GPT-4 and Embeddings API
 - **FastAPI** - Modern Python web framework
@@ -341,7 +341,7 @@ MIT License - see [LICENSE](LICENSE) file for details
 
 ---
 
-## 📞 Support
+## Support
 
 ### Documentation
 - **Complete Setup:** [LOCAL_SETUP_GUIDE.md](LOCAL_SETUP_GUIDE.md)
@@ -356,7 +356,7 @@ MIT License - see [LICENSE](LICENSE) file for details
 
 ---
 
-## 🎯 Roadmap
+## Roadmap
 
 ### Current (v1.0)
 - ✅ GitHub repository analysis
