@@ -2,11 +2,13 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import {
-  Github, FileText, Sparkles, Code, TestTube,
+  Github, Sparkles, Code, TestTube,
   Rocket, BookOpen, Loader2, AlertCircle, Zap,
   ArrowRight, Star, GitBranch, Mic, MicOff, Radio,
-  CheckCircle2, Upload, Wifi, WifiOff,
+  CheckCircle2, Upload, Wifi, WifiOff, Send, Volume2, VolumeX,
+  Bot, User as UserIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -34,19 +36,43 @@ declare global {
   }
 }
 
-type Tab = "github" | "transcript" | "live";
+type Tab = "github" | "chat" | "live";
+
+interface ChatMessage {
+  role: "user" | "Bob";
+  content: string;
+  timestamp: Date;
+}
 
 export default function Home() {
   const router = useRouter();
   const { setWorkspace } = useStore();
   const [activeTab, setActiveTab] = useState<Tab>("github");
+
   // GitHub state
   const [repoUrl, setRepoUrl] = useState("");
   const [branch, setBranch] = useState("main");
   const [depth, setDepth] = useState("shallow");
-  // Transcript state
-  const [transcript, setTranscript] = useState("");
-  const [context, setContext] = useState("");
+
+  // Chat with Bob state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [userInput, setUserInput] = useState("");
+  const [isBobSpeaking, setIsBobSpeaking] = useState(false);
+  const [isChatListening, setIsChatListening] = useState(false);
+  const [autoSpeak, setAutoSpeak] = useState(true);
+
+  // Initialize welcome message for Bob
+  useEffect(() => {
+    setChatMessages([{
+      role: "Bob",
+      content: "Hi! I am Bob! I'm here to help you with anything you need; from coding questions and debugging to just hanging out and chatting. What's on your mind today?",
+      timestamp: new Date()
+    }]);
+  }, []);
+
+  const chatRecognitionRef = useRef<any>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   // Live meeting state
   const [isListening, setIsListening] = useState(false);
   const [liveNotes, setLiveNotes] = useState("");
@@ -61,6 +87,7 @@ export default function Home() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const insightTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Common state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +107,7 @@ export default function Home() {
       audioChunksRef.current = [];
       const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
       mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      mr.start(1000); // collect chunks every second
+      mr.start(1000);
       mediaRecorderRef.current = mr;
       setIsRecordingAudio(true);
       setError(null);
@@ -117,7 +144,7 @@ export default function Home() {
     }
   }, []);
 
-  // ── Browser SpeechRecognition setup ──────────────────────────────────────
+  // ── Browser SpeechRecognition for Live Meeting ──────────────────────────────────────
   const startListening = useCallback(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -153,9 +180,8 @@ export default function Home() {
     };
 
     recognition.onend = () => {
-      // Auto-restart if still supposed to be listening
       if (recognitionRef.current) {
-        try { recognition.start(); } catch (_) {}
+        try { recognition.start(); } catch (_) { }
       }
     };
 
@@ -167,7 +193,7 @@ export default function Home() {
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
-      recognitionRef.current.onend = null; // prevent auto-restart
+      recognitionRef.current.onend = null;
       recognitionRef.current.stop();
       recognitionRef.current = null;
     }
@@ -187,7 +213,7 @@ export default function Home() {
               body: JSON.stringify({ partial_notes: liveNotes }),
             });
             if (res.ok) setLiveInsights(await res.json());
-          } catch (_) {}
+          } catch (_) { }
           setInsightLoading(false);
         }
       }, 40_000);
@@ -199,6 +225,124 @@ export default function Home() {
 
   // Cleanup on unmount
   useEffect(() => () => stopListening(), [stopListening]);
+
+  // ── Bob Chat: Text-to-Speech ──────────────────────────────────────────────
+  const speakText = useCallback((text: string) => {
+    if (!window.speechSynthesis) return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+
+    // Select a natural-sounding female voice
+    const voices = window.speechSynthesis.getVoices();
+
+    // Priority order for most natural female voices
+    const preferredVoices = [
+      'Samantha',           // macOS - very natural, warm
+      'Ava',                // macOS - premium quality
+      'Google UK English Female', // Chrome - natural British
+      'Google US English',  // Chrome - natural American
+      'Microsoft Zira',     // Windows - natural
+      'Karen',              // macOS - friendly
+      'Victoria',           // macOS - clear
+      'Fiona',              // macOS - Scottish
+      'Moira',              // macOS - Irish
+      'Tessa',              // macOS - South African
+    ];
+
+    // Find the best available female voice
+    let selectedVoice = voices.find(voice =>
+      preferredVoices.some(preferred => voice.name.includes(preferred))
+    );
+
+    // Fallback: find any female voice
+    if (!selectedVoice) {
+      selectedVoice = voices.find(voice =>
+        voice.name.toLowerCase().includes('female') ||
+        voice.name.toLowerCase().includes('woman') ||
+        (voice.name.includes('Google') && voice.lang.startsWith('en'))
+      );
+    }
+
+    // Fallback: find any English voice that's not explicitly male
+    if (!selectedVoice) {
+      selectedVoice = voices.find(voice =>
+        voice.lang.startsWith('en') &&
+        !voice.name.toLowerCase().includes('male')
+      );
+    }
+
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
+
+    // Optimized parameters for natural, human-like speech
+    utterance.rate = 0.92;      // Slower, more conversational pace
+    utterance.pitch = 1.2;      // Slightly higher for warm female voice
+    utterance.volume = 0.85;    // Softer, more natural volume
+
+    utterance.onstart = () => setIsBobSpeaking(true);
+    utterance.onend = () => setIsBobSpeaking(false);
+    utterance.onerror = () => setIsBobSpeaking(false);
+
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  const stopSpeaking = useCallback(() => {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      setIsBobSpeaking(false);
+    }
+  }, []);
+
+  // ── Bob Chat: Speech Recognition ──────────────────────────────────────────
+  const startChatListening = useCallback(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setError("Your browser doesn't support speech recognition. Please use Chrome or Edge.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setUserInput(transcript);
+      setIsChatListening(false);
+    };
+
+    recognition.onerror = (e: any) => {
+      console.error("Speech recognition error:", e.error);
+      setIsChatListening(false);
+      if (e.error !== "no-speech") {
+        setError(`Microphone error: ${e.error}`);
+      }
+    };
+
+    recognition.onend = () => setIsChatListening(false);
+
+    recognition.start();
+    chatRecognitionRef.current = recognition;
+    setIsChatListening(true);
+    setError(null);
+  }, []);
+
+  const stopChatListening = useCallback(() => {
+    if (chatRecognitionRef.current) {
+      chatRecognitionRef.current.stop();
+      chatRecognitionRef.current = null;
+    }
+    setIsChatListening(false);
+  }, []);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAnalyzeRepo = async () => {
@@ -213,16 +357,61 @@ export default function Home() {
     } finally { setLoading(false); }
   };
 
-  const handleAnalyzeTranscript = async () => {
-    if (!transcript.trim()) return;
-    setLoading(true); setError(null);
+  const handleSendMessage = async () => {
+    if (!userInput.trim() || loading) return;
+
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: userInput.trim(),
+      timestamp: new Date()
+    };
+
+    setChatMessages(prev => [...prev, userMessage]);
+    setUserInput("");
+    setLoading(true);
+    setError(null);
+
     try {
-      const result: any = await api.analyzeTranscript({ transcript, context });
-      setWorkspace({ workspace_id: result.workspace_id, type: "transcript", metadata: result.requirements ? { requirements: result.requirements } : {}, created_at: result.created_at || new Date().toISOString() });
-      router.push(`/workspace?workspace_id=${result.workspace_id}&type=transcript`);
+      const response = await fetch("http://localhost:8000/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userInput.trim(),
+          conversation_history: chatMessages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          })),
+          conversation_id: "Bob-chat",
+          mode: "casual"
+          // Let backend use its voice-optimized system prompt
+        })
+      });
+
+      if (!response.ok) throw new Error("Failed to get response from Bob");
+
+      const data = await response.json();
+      const BobMessage: ChatMessage = {
+        role: "Bob",
+        content: data.response || "Oops! My brain just did a 404. Try again? 😅",
+        timestamp: new Date()
+      };
+
+      setChatMessages(prev => [...prev, BobMessage]);
+
+      if (autoSpeak && window.speechSynthesis) {
+        speakText(BobMessage.content);
+      }
     } catch (err: any) {
-      setError(err.message || "Failed to process transcript. Check your OpenAI API key in backend/.env");
-    } finally { setLoading(false); }
+      setError(err.message || "Bob seems to be taking a coffee break ☕ Try again!");
+      const errorMessage: ChatMessage = {
+        role: "Bob",
+        content: "Whoops! Something went wrong on my end. 😅 Can you try that again?",
+        timestamp: new Date()
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleProcessLiveMeeting = async () => {
@@ -257,41 +446,49 @@ export default function Home() {
         <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-3xl" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-3xl" />
         {activeTab === "live" && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-red-600/5 rounded-full blur-3xl animate-pulse" />}
+        {activeTab === "chat" && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-purple-600/5 rounded-full blur-3xl" />}
       </div>
 
       {/* Header */}
       <header className="relative border-b border-gray-800 bg-gray-950/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <Zap className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-lg font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              DevPilot AI
+            <Image
+              src="/boblogo.png"
+              alt="Bob Logo"
+              width={40}
+              height={40}
+              className="rounded-lg"
+            />
+            <span className="font-display text-xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent tracking-tight">
+              Bob By Your Side
             </span>
           </div>
-          <span className="text-xs text-gray-500 bg-gray-800 px-3 py-1 rounded-full border border-gray-700">
-            v1.0.0 · Hackathon MVP
+          <span className="font-mono text-[10px] text-purple-400 bg-purple-900/20 px-3 py-1.5 rounded border border-purple-500/30 tracking-widest uppercase">
+            POWERED BY IBM BOB
           </span>
         </div>
       </header>
 
       {/* Hero */}
       <section className="relative container mx-auto px-6 pt-20 pb-16 text-center">
-        <div className="inline-flex items-center gap-2 text-xs text-blue-400 bg-blue-900/30 border border-blue-700/40 px-4 py-2 rounded-full mb-8">
-          <Star className="w-3 h-3" /> AI-Powered Developer IDE
+        <div className="inline-flex items-center gap-2 text-[11px] font-mono text-purple-400 bg-purple-900/30 border border-purple-700/40 px-4 py-2 rounded-full mb-8 tracking-[0.2em] uppercase">
+          <Star className="w-3 h-3" /> AI DevFlow IDE
         </div>
-        <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight">
-          Your AI{" "}
-          <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-            Engineering
-          </span>{" "}
-          Teammate
+        <h1 className="font-display text-5xl md:text-7xl font-extrabold mb-6 leading-[1.05] tracking-tighter text-white">
+          Your AI <em className="not-italic text-transparent bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text">Engineering</em><br />Teammate
         </h1>
-        <p className="text-lg text-gray-400 max-w-2xl mx-auto mb-12">
-          Analyze GitHub repos, process meeting transcripts, or join live meetings.
-          Get instant AI insights for code review, testing, deployment, and documentation.
-        </p>
+        <div className="max-w-2xl mx-auto mb-12 space-y-6">
+          <p className="text-[17px] text-gray-400 font-medium border-l-[3px] border-purple-500 pl-5 text-left mx-auto max-w-xl leading-relaxed">
+            <strong className="text-gray-100 font-semibold">Developers don't struggle to write code.</strong><br />
+            They struggle to understand existing codebases.
+          </p>
+          <p className="text-[15px] text-gray-400 leading-relaxed max-w-xl mx-auto">
+            Paste a GitHub URL. Bob By Your Side clones, analyzes, and explains
+            your repository.. architecture, evolution, bugs, tests, and docs<br />
+            <span className="text-teal-400 font-medium"> IBM Bob</span> reads the full codebase, not just snippets.
+          </p>
+        </div>
 
         {/* Input Card */}
         <div className="max-w-2xl mx-auto">
@@ -301,15 +498,14 @@ export default function Home() {
             <div className="flex gap-1.5 mb-6 p-1 bg-gray-800 rounded-xl">
               {([
                 { id: "github", label: "GitHub Repo", icon: <Github className="w-3.5 h-3.5" />, active: "bg-blue-600 shadow-blue-500/30" },
-                { id: "transcript", label: "Transcript", icon: <FileText className="w-3.5 h-3.5" />, active: "bg-purple-600 shadow-purple-500/30" },
+                { id: "chat", label: "Chat with Bob", icon: <Bot className="w-3.5 h-3.5" />, active: "bg-purple-600 shadow-purple-500/30" },
                 { id: "live", label: "Live Meeting", icon: <Mic className="w-3.5 h-3.5" />, active: "bg-red-600 shadow-red-500/30" },
               ] as const).map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => { setActiveTab(tab.id); setError(null); }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg font-medium text-xs transition-all shadow-lg ${
-                    activeTab === tab.id ? `${tab.active} text-white` : "text-gray-400 hover:text-white"
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg font-medium text-xs transition-all shadow-lg ${activeTab === tab.id ? `${tab.active} text-white` : "text-gray-400 hover:text-white"
+                    }`}
                 >
                   {tab.icon}{tab.label}
                 </button>
@@ -370,26 +566,94 @@ export default function Home() {
               </div>
             )}
 
-            {/* ── Transcript tab ── */}
-            {activeTab === "transcript" && (
+            {/* ── Chat with Bob tab ── */}
+            {activeTab === "chat" && (
               <div className="space-y-4">
-                <div>
-                  <label className="block text-xs text-gray-400 font-medium mb-1.5">Meeting Notes or Transcript</label>
-                  <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)}
-                    placeholder="Paste your meeting notes, transcript, or requirements here…"
-                    rows={6}
-                    className="w-full bg-gray-800 border border-gray-600 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 outline-none focus:border-purple-500/70 transition-colors resize-none" />
+                {/* Chat messages */}
+                <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4 h-[400px] overflow-y-auto space-y-3">
+                  {chatMessages.map((msg, idx) => (
+                    <div key={idx} className={`flex gap-3 animate-fade-in ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-lg overflow-hidden ${msg.role === "Bob"
+                        ? "bg-gray-800 shadow-purple-500/20 border border-purple-500/30"
+                        : "bg-gradient-to-br from-blue-500 to-cyan-500 shadow-blue-500/20"
+                        }`}>
+                        {msg.role === "Bob" ? (
+                          <img src="/Pop.png" alt="Bob Avatar" className="w-full h-full object-cover" />
+                        ) : (
+                          <UserIcon className="w-4 h-4 text-white" />
+                        )}
+                      </div>
+                      <div className={`flex flex-col max-w-[80%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                        <div className={`inline-block px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.role === "Bob"
+                          ? "bg-gray-800/80 border border-gray-700/50 text-gray-200 rounded-tl-sm"
+                          : "bg-blue-600 border border-blue-500 text-white rounded-tr-sm"
+                          }`}>
+                          {msg.content}
+                        </div>
+                        <div className="text-[10px] text-gray-500 mt-1.5 px-1 font-medium tracking-wide">
+                          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={chatEndRef} />
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-400 font-medium mb-1.5">Context (Optional)</label>
-                  <input type="text" value={context} onChange={(e) => setContext(e.target.value)}
-                    placeholder="e.g. Sprint planning for Q2 2026"
-                    className="w-full bg-gray-800 border border-gray-600 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-purple-500/70 transition-colors" />
+
+                {/* Controls */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={autoSpeak ? stopSpeaking : undefined}
+                    className={`p-2 rounded-lg transition-colors ${isBobSpeaking
+                      ? "bg-purple-600 text-white animate-pulse"
+                      : autoSpeak
+                        ? "bg-purple-900/40 border border-purple-700/40 text-purple-300 hover:bg-purple-900/60"
+                        : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+                      }`}
+                    title={autoSpeak ? "Auto-speak enabled" : "Auto-speak disabled"}
+                  >
+                    {isBobSpeaking ? <Volume2 className="w-4 h-4" /> : autoSpeak ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => setAutoSpeak(!autoSpeak)}
+                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                  >
+                    {autoSpeak ? "Disable" : "Enable"} voice
+                  </button>
                 </div>
-                <button onClick={handleAnalyzeTranscript} disabled={!transcript.trim() || loading}
-                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white px-6 py-3.5 rounded-xl font-medium hover:opacity-90 transition-all shadow-lg shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
-                  {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Processing…</> : <><Zap className="w-4 h-4" />Process Transcript<ArrowRight className="w-4 h-4" /></>}
-                </button>
+
+                {/* Input */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={isChatListening ? stopChatListening : startChatListening}
+                    disabled={loading}
+                    className={`p-3 rounded-xl transition-all ${isChatListening
+                      ? "bg-purple-600 text-white animate-pulse shadow-purple-500/30 shadow-lg"
+                      : "bg-gray-700 hover:bg-gray-600 text-white"
+                      } disabled:opacity-50`}
+                  >
+                    {isChatListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                  </button>
+                  <input
+                    type="text"
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                    placeholder="Type or speak your message..."
+                    disabled={loading}
+                    className="flex-1 bg-gray-800 border border-gray-600 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 outline-none focus:border-purple-500/70 transition-colors disabled:opacity-50"
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!userInput.trim() || loading}
+                    className="p-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:opacity-90 transition-all shadow-lg shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                <div className="bg-purple-900/20 border border-purple-700/30 rounded-xl p-3 text-xs text-purple-300">
+                  💡 <strong>Tip:</strong> Bob is your casual AI buddy! Ask about code, get tech advice, or just chat. Click the mic to speak or type your message.
+                </div>
               </div>
             )}
 
@@ -398,19 +662,17 @@ export default function Home() {
               <div className="space-y-4">
                 {/* Status badges */}
                 <div className="flex gap-2 flex-wrap">
-                  <span className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
-                    sttStatus?.bob_api_configured
-                      ? "bg-green-900/30 border-green-700/40 text-green-300"
-                      : "bg-red-900/30 border-red-700/40 text-red-300"
-                  }`}>
+                  <span className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${sttStatus?.bob_api_configured
+                    ? "bg-green-900/30 border-green-700/40 text-green-300"
+                    : "bg-red-900/30 border-red-700/40 text-red-300"
+                    }`}>
                     {sttStatus?.bob_api_configured ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
                     Bob API {sttStatus?.bob_api_configured ? "Connected" : "Not configured"}
                   </span>
-                  <span className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
-                    sttStatus?.watson_stt_available
-                      ? "bg-blue-900/30 border-blue-700/40 text-blue-300"
-                      : "bg-gray-800 border-gray-700 text-gray-500"
-                  }`}>
+                  <span className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${sttStatus?.watson_stt_available
+                    ? "bg-blue-900/30 border-blue-700/40 text-blue-300"
+                    : "bg-gray-800 border-gray-700 text-gray-500"
+                    }`}>
                     <Mic className="w-3 h-3" />
                     Watson STT {sttStatus?.watson_stt_available ? "Ready" : "Not configured"}
                   </span>
@@ -439,11 +701,10 @@ export default function Home() {
                     {/* Browser SpeechRecognition */}
                     <button
                       onClick={isListening ? stopListening : startListening}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-all ${
-                        isListening
-                          ? "bg-red-600 hover:bg-red-700 text-white animate-pulse shadow-red-500/30 shadow-lg"
-                          : "bg-gray-700 hover:bg-gray-600 text-white"
-                      }`}>
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-all ${isListening
+                        ? "bg-red-600 hover:bg-red-700 text-white animate-pulse shadow-red-500/30 shadow-lg"
+                        : "bg-gray-700 hover:bg-gray-600 text-white"
+                        }`}>
                       {isListening ? <><MicOff className="w-4 h-4" />Stop</> : <><Mic className="w-4 h-4" />Live (Browser)</>}
                     </button>
 
@@ -452,16 +713,15 @@ export default function Home() {
                       <button
                         onClick={isRecordingAudio ? stopAndTranscribeAudio : startAudioRecording}
                         disabled={uploadingAudio || isListening}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-all disabled:opacity-50 ${
-                          isRecordingAudio
-                            ? "bg-blue-600 hover:bg-blue-700 text-white animate-pulse shadow-blue-500/30 shadow-lg"
-                            : "bg-blue-900/40 hover:bg-blue-900/60 border border-blue-700/40 text-blue-300"
-                        }`}>
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-all disabled:opacity-50 ${isRecordingAudio
+                          ? "bg-blue-600 hover:bg-blue-700 text-white animate-pulse shadow-blue-500/30 shadow-lg"
+                          : "bg-blue-900/40 hover:bg-blue-900/60 border border-blue-700/40 text-blue-300"
+                          }`}>
                         {uploadingAudio
                           ? <><Loader2 className="w-4 h-4 animate-spin" />Transcribing…</>
                           : isRecordingAudio
-                          ? <><MicOff className="w-4 h-4" />Stop + Transcribe (Watson)</>
-                          : <><Upload className="w-4 h-4" />Record (Watson STT)</>}
+                            ? <><MicOff className="w-4 h-4" />Stop + Transcribe (Watson)</>
+                            : <><Upload className="w-4 h-4" />Record (Watson STT)</>}
                       </button>
                     )}
 
@@ -484,9 +744,8 @@ export default function Home() {
                     value={liveNotes} onChange={(e) => setLiveNotes(e.target.value)}
                     placeholder="Your speech will appear here in real-time. You can also type or paste text directly…"
                     rows={6}
-                    className={`w-full bg-gray-800 border rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 outline-none resize-none transition-colors ${
-                      isListening ? "border-red-500/60 focus:border-red-400" : "border-gray-600 focus:border-red-500/70"
-                    }`}
+                    className={`w-full bg-gray-800 border rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 outline-none resize-none transition-colors ${isListening ? "border-red-500/60 focus:border-red-400" : "border-gray-600 focus:border-red-500/70"
+                      }`}
                   />
                   {liveNotes && (
                     <span className="absolute bottom-3 right-3 text-xs text-gray-600">{liveNotes.split(" ").filter(Boolean).length} words</span>
@@ -575,3 +834,5 @@ export default function Home() {
     </div>
   );
 }
+
+// Made with Bob

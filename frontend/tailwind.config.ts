@@ -44,9 +44,9 @@ const config = {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
         },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
+        Bobover: {
+          DEFAULT: "hsl(var(--Bobover))",
+          foreground: "hsl(var(--Bobover-foreground))",
         },
         card: {
           DEFAULT: "hsl(var(--card))",
@@ -71,6 +71,11 @@ const config = {
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+      },
+      fontFamily: {
+        sans: ["var(--font-inter)"],
+        display: ["var(--font-syne)"],
+        mono: ["var(--font-space-mono)"],
       },
     },
   },

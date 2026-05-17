@@ -41,14 +41,23 @@ class TranscriptProcessor:
             # Create workspace
             workspace_id = str(uuid.uuid4())
             
+            # Clean transcript first (like live meeting does)
+            cleaned_transcript = await self._clean_transcript(transcript)
+            
             # Extract requirements using AI
-            requirements = await self._extract_requirements(transcript, context)
+            requirements = await self._extract_requirements(cleaned_transcript, context)
             
             # Generate user stories
-            user_stories = await self._generate_user_stories(transcript, requirements, context)
+            user_stories = await self._generate_user_stories(cleaned_transcript, requirements, context)
             
             # Generate engineering tickets
-            tickets = await self._generate_tickets(transcript, requirements, user_stories, context)
+            tickets = await self._generate_tickets(cleaned_transcript, requirements, user_stories, context)
+            
+            # Generate summary
+            summary = await self._generate_summary(cleaned_transcript, context)
+            
+            # Generate implementation plan (like live meeting)
+            implementation_plan = await self._generate_implementation_plan(requirements, context)
             
             # Create metadata
             metadata = {
@@ -57,7 +66,8 @@ class TranscriptProcessor:
                 "requirements_count": len(requirements),
                 "user_stories_count": len(user_stories),
                 "tickets_count": len(tickets),
-                "processed_at": datetime.utcnow().isoformat()
+                "processed_at": datetime.utcnow().isoformat(),
+                "source": "transcript_analysis"
             }
             
             # Create workspace
@@ -72,12 +82,14 @@ class TranscriptProcessor:
             self.db.add(workspace)
             self.db.commit()
             
-            # Format extracted data
+            # Format extracted data (matching live meeting format)
             extracted_data = {
+                "cleaned_transcript": cleaned_transcript,
                 "requirements": requirements,
                 "user_stories": [story.dict() for story in user_stories],
                 "tickets": [ticket.dict() for ticket in tickets],
-                "summary": await self._generate_summary(transcript, context)
+                "summary": summary,
+                "implementation_plan": implementation_plan
             }
             
             return TranscriptAnalyzeResponse(
@@ -329,5 +341,86 @@ Keep it under 200 words."""
         except Exception as e:
             print(f"Error generating summary: {e}")
             return "Summary generation failed"
+    
+    async def _clean_transcript(self, raw: str) -> str:
+        """Clean and format the transcript"""
+        try:
+            response = await self.client.chat.completions.create(
+                model=settings.WATSONX_MODEL_ID,
+                messages=[
+                    {"role": "system", "content": "You are an expert transcription editor. Clean the following transcript: fix repetitions, filler words ('um', 'uh'), and obvious errors. Keep all content but make it readable. Do NOT summarize."},
+                    {"role": "user", "content": raw[:6000]},
+                ],
+                temperature=0.2,
+                max_tokens=2000,
+            )
+            return response.choices[0].message.content or raw
+        except Exception:
+            return raw
+    
+    async def _generate_implementation_plan(
+        self,
+        requirements: List[str],
+        context: str = None
+    ) -> Dict[str, Any]:
+        """Generate technical implementation plan"""
+        try:
+            req_text = "\n".join([f"- {req}" for req in requirements])
+            
+            prompt = f"""Create a technical implementation plan for these requirements:
+
+{req_text}
+
+Context: {context or 'Software project'}
+
+Generate a JSON object with:
+- "architecture": recommended architecture approach
+- "tech_stack": suggested technologies and frameworks
+- "phases": list of implementation phases with timeline
+- "risks": potential technical risks and mitigation strategies
+- "team_structure": recommended team composition
+
+Respond ONLY with valid JSON."""
+
+            response = await self.client.chat.completions.create(
+                model=settings.WATSONX_MODEL_ID,
+                messages=[
+                    {"role": "system", "content": "You are a technical architect. Always respond with valid JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.4,
+                max_tokens=1500
+            )
+            
+            content = response.choices[0].message.content or "{}"
+            # Remove markdown code blocks if present
+            content = re.sub(r"^```(?:json)?\s*", "", content, flags=re.MULTILINE)
+            content = re.sub(r"\s*```$", "", content, flags=re.MULTILINE)
+            
+            import json
+            try:
+                return json.loads(content)
+            except:
+                # Fallback structure
+                return {
+                    "architecture": "Microservices architecture recommended",
+                    "tech_stack": ["React", "Node.js", "PostgreSQL"],
+                    "phases": [
+                        {"phase": "Phase 1", "duration": "2-3 weeks", "tasks": ["Setup", "Core features"]},
+                        {"phase": "Phase 2", "duration": "3-4 weeks", "tasks": ["Advanced features", "Testing"]}
+                    ],
+                    "risks": ["Timeline constraints", "Resource availability"],
+                    "team_structure": "2-3 developers, 1 designer, 1 QA"
+                }
+                
+        except Exception as e:
+            print(f"Error generating implementation plan: {e}")
+            return {
+                "architecture": "Implementation plan generation failed",
+                "tech_stack": [],
+                "phases": [],
+                "risks": [],
+                "team_structure": ""
+            }
 
 # Made with IBM watsonx.ai

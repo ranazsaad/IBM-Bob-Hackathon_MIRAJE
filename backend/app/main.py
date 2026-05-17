@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.database.session import init_db
-from app.api.routes import health, analyze, modes, workspace, live_meeting, conversations, vscode
+from app.api.routes import health, analyze, modes, workspace, live_meeting, conversations, vscode, chat
 
 
 @asynccontextmanager
@@ -46,6 +46,7 @@ app.include_router(workspace.router, prefix="/api/workspace", tags=["Workspace"]
 app.include_router(live_meeting.router, prefix="/api/live-meeting", tags=["Live Meeting"])
 app.include_router(conversations.router, prefix="/api/conversations", tags=["Conversations"])
 app.include_router(vscode.router, prefix="/api/vscode", tags=["VS Code Integration"])
+app.include_router(chat.router, prefix="/api", tags=["Chat"])
 
 
 @app.get("/")

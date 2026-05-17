@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from app.database.session import get_db
 from app.database.models import Workspace
 from app.config import settings
-from app.services.ibm_watsonx_client import AsyncIBMWatsonxClient
+from app.services.ibm_watsonx_client import create_async_watsonx_client
 import json
 import re
 
@@ -315,7 +315,7 @@ async def scaffold_project(request: ScaffoldProjectRequest, db: Session = Depend
         reqs_str = "\n".join([f"- {r}" for r in request.requirements])
         tickets_str = "\n".join([f"Ticket: {t.get('title')}\nDesc: {t.get('description')}\n" for t in request.tickets])
 
-        prompt = f"""You are an elite, senior software architect. A user wants to build a production-ready project based on these meeting requirements and tickets:
+        prompt = f"""You are an elite software architect. Create a COMPLETE, PRODUCTION-READY project with ALL source code files.
 
 REQUIREMENTS:
 {reqs_str}
@@ -323,54 +323,173 @@ REQUIREMENTS:
 TICKETS:
 {tickets_str}
 
-You MUST generate a complete, high-quality, working project structure from scratch that implements ALL of the above requirements and tickets. 
-Adhere to the following STRICT guidelines:
-1. Best Practices: Write clean, modular, and extremely high-quality code. Use modern frameworks, robust error handling, and standard architecture patterns.
-2. Completeness: You must include ALL necessary boilerplate and configuration files (e.g., package.json, tsconfig.json, requirements.txt) and entry point files so the project runs out of the box without any missing dependencies.
-3. README.md: You MUST generate a comprehensive `README.md` file in the root directory that contains EVERYTHING about the project (architecture, features, tech stack, setup instructions, and usage).
-4. Do not omit any crucial code. Use descriptive variable names and helpful comments.
-5. NO GIT CLONE: DO NOT include instructions to "git clone" a repository in the setup guide or README. The project files will be generated locally on the user's machine and opened directly in VS Code, so cloning is completely irrelevant.
+YOU MUST GENERATE A FULL PROJECT INCLUDING:
 
-Provide the full code for every file needed, AND a step-by-step setup guide.
+1. CONFIGURATION FILES:
+   - package.json / requirements.txt (with ALL dependencies)
+   - tsconfig.json / pyproject.toml (if applicable)
+   - .env.example (environment variables)
+   - Any build/config files needed
 
-Return your response ONLY as a single JSON object with the following structure:
+2. SOURCE CODE FILES:
+   - Main entry point (index.js, main.py, app.py, etc.)
+   - All component/module files with COMPLETE implementations
+   - API routes/endpoints with full logic
+   - Database models/schemas
+   - Utility functions
+   - Service/business logic files
+   - ALL files needed for a working application
+
+3. FRONTEND (if web app):
+   - HTML/JSX/TSX files with complete UI
+   - CSS/styling files
+   - Component files with full implementations
+   - State management files
+
+4. BACKEND (if applicable):
+   - Server setup file
+   - API route handlers with complete logic
+   - Database connection/models
+   - Middleware files
+   - Authentication logic (if needed)
+
+5. DOCUMENTATION:
+   - README.md with architecture, setup, and usage
+   - API documentation (if applicable)
+
+CRITICAL RULES:
+- Generate AT LEAST 8-15 files with COMPLETE, WORKING code
+- NO placeholder comments like "// Add logic here" or "# TODO"
+- ALL functions must have full implementations
+- Include error handling and validation
+- Use modern best practices and frameworks
+- Escape JSON properly: use \\\\ for backslash, \\n for newline, \\" for quotes
+
+SETUP GUIDE MUST BE STEP-BY-STEP INSTALLATION INSTRUCTIONS:
+The setup_guide field MUST contain EXACT commands to run, formatted as markdown with:
+1. Prerequisites (Node.js version, Python version, etc.)
+2. Installation steps with EXACT commands:
+   ```bash
+   npm install
+   ```
+   or
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Configuration steps (environment variables, database setup)
+4. How to run the project with EXACT commands:
+   ```bash
+   npm start
+   ```
+   or
+   ```bash
+   python main.py
+   ```
+5. How to test the project
+
+Return ONLY valid JSON (no markdown blocks):
 {{
-  "setup_guide": "Markdown formatted step-by-step instructions on how to install dependencies and run the project.",
+  "setup_guide": "# Setup Guide\\n\\n## Prerequisites\\n- Node.js 18+\\n\\n## Installation\\n```bash\\nnpm install\\n```\\n\\n## Run\\n```bash\\nnpm start\\n```",
   "files": [
-    {{
-      "path": "the relative file path (e.g., package.json, src/index.js)",
-      "content": "the complete file content"
-    }}
+    {{"path": "package.json", "content": "complete file content"}},
+    {{"path": "src/index.js", "content": "complete file content"}},
+    {{"path": "src/components/App.jsx", "content": "complete file content"}}
   ]
-}}
+}}"""
 
-IMPORTANT: You MUST properly escape all backslashes in your code content for JSON (e.g., write \\\\ instead of \\, \\\\n instead of \\n, \\\\d instead of \\d).
-Do not include markdown formatting or any other text outside the JSON object."""
-
-        client = AsyncIBMWatsonxClient()
+        # Use IBM WatsonX with Granite model
+        if not settings.watsonx_available:
+            raise HTTPException(
+                status_code=503,
+                detail="IBM WatsonX credentials not configured. Please set IBM_CLOUD_API_KEY and WATSONX_PROJECT_ID in .env file."
+            )
+        
+        client = create_async_watsonx_client()
         response = await client.chat.completions.create(
             model=settings.WATSONX_MODEL_ID,
             messages=[
-                {"role": "system", "content": "You are a code generator. Always respond with valid JSON only."},
+                {"role": "system", "content": "You are an expert full-stack developer. Generate complete, production-ready code. Return ONLY valid JSON with no markdown formatting. Ensure all JSON is properly formatted with correct commas and quotes."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.2,
-            max_tokens=6000,
+            temperature=0.2,  # Lower for more consistent JSON
+            max_tokens=8000,  # Reduced to ensure complete JSON generation
         )
         
         content = response.choices[0].message.content or "[]"
+        
+        # Remove markdown code blocks
         content = re.sub(r"^```(?:json)?\s*", "", content, flags=re.MULTILINE)
         content = re.sub(r"\s*```$", "", content, flags=re.MULTILINE)
+        content = content.strip()
         
+        # Try multiple parsing strategies
+        result_data = None
+        parse_errors = []
+        
+        # Strategy 1: Direct parse
         try:
             result_data = json.loads(content, strict=False)
-        except json.JSONDecodeError:
-            # Fallback: attempt to fix invalid escapes that LLM missed
-            fixed_content = re.sub(r'\\(?![/"\\bfnrtu])', r'\\\\', content)
-            result_data = json.loads(fixed_content, strict=False)
+        except json.JSONDecodeError as e:
+            parse_errors.append(f"Direct parse: {str(e)}")
+            
+            # Strategy 2: Fix common escape issues and malformed strings
+            try:
+                # Fix unescaped backslashes
+                fixed_content = re.sub(r'\\(?![/"\\bfnrtu])', r'\\\\', content)
+                # Fix missing commas before closing braces/brackets (common AI error)
+                fixed_content = re.sub(r'"\s*\n\s*}', '"\n}', fixed_content)
+                fixed_content = re.sub(r'"\s*\n\s*]', '"\n]', fixed_content)
+                result_data = json.loads(fixed_content, strict=False)
+            except json.JSONDecodeError as e2:
+                parse_errors.append(f"Escape fix: {str(e2)}")
+                
+                # Strategy 3: Try to fix truncated JSON
+                try:
+                    # Find the last complete file object
+                    fixed_content = content
+                    # If JSON is truncated, try to close it properly
+                    if not fixed_content.rstrip().endswith('}'):
+                        # Count open braces
+                        open_braces = fixed_content.count('{') - fixed_content.count('}')
+                        if open_braces > 0:
+                            fixed_content = fixed_content.rstrip().rstrip(',') + '\n' + ('}\n' * open_braces)
+                    result_data = json.loads(fixed_content, strict=False)
+                except json.JSONDecodeError as e3:
+                    parse_errors.append(f"Fix truncation: {str(e3)}")
+                    
+                    # Strategy 4: Extract JSON object from response
+                    try:
+                        # Find the first { and last }
+                        start = content.find('{')
+                        end = content.rfind('}')
+                        if start != -1 and end != -1:
+                            json_str = content[start:end+1]
+                            result_data = json.loads(json_str, strict=False)
+                    except json.JSONDecodeError as e4:
+                        parse_errors.append(f"Extract JSON: {str(e4)}")
+                        
+                        # Strategy 5: Fallback to raw text
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.error(f"Failed to parse LLM JSON response. Content preview: {content[:500]}...")
+                        logger.error(f"Parse errors: {'; '.join(parse_errors)}")
+                        
+                        # Instead of crashing, just return the raw text as a single file
+                        result_data = {
+                            "setup_guide": "# AI Format Error\\nBob failed to format the project as a valid JSON structure. However, the raw code has been saved.",
+                            "files": [
+                                {
+                                    "path": "RAW_AI_OUTPUT.md",
+                                    "content": content
+                                }
+                            ]
+                        }
         
         if not isinstance(result_data, dict) or "files" not in result_data:
-            raise ValueError("LLM did not return the expected JSON object structure")
+            result_data = {
+                "setup_guide": "# AI Format Error",
+                "files": [{"path": "ERROR.txt", "content": "LLM did not return the expected JSON object structure."}]
+            }
             
         files = result_data["files"]
         setup_guide = result_data.get("setup_guide", "No setup guide provided.")
@@ -432,7 +551,14 @@ Here is the current code in their project:
 
 Please analyze the error and the code, and tell the user EXACTLY what they need to do to fix the error and run the project successfully. Use clear, step-by-step markdown."""
 
-        client = AsyncIBMWatsonxClient()
+        # Use IBM WatsonX with Granite model
+        if not settings.watsonx_available:
+            raise HTTPException(
+                status_code=503,
+                detail="IBM WatsonX credentials not configured. Please set IBM_CLOUD_API_KEY and WATSONX_PROJECT_ID in .env file."
+            )
+        
+        client = create_async_watsonx_client()
         response = await client.chat.completions.create(
             model=settings.WATSONX_MODEL_ID,
             messages=[

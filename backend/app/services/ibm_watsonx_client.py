@@ -63,6 +63,7 @@ class IBMWatsonxClient:
             "top_p": top_p or settings.TOP_P,
             "top_k": top_k or settings.TOP_K,
             "repetition_penalty": repetition_penalty or settings.REPETITION_PENALTY,
+            "stop_sequences": ["\nUser:", "User:", "\nSystem:", "System:"]
         }
         
         # Build request body

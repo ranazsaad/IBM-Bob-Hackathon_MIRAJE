@@ -58,22 +58,9 @@ OPENAI_API_KEY=sk-your-actual-bob-api-key-here
 
 **Example:**
 ```env
-OPENAI_API_KEY=sk-bob-1234567890abcdef
 ```
 
 #### 2.3 Verify Other Settings
-
-Make sure these lines are present and correct:
-```env
-# Bob/Cline AI Configuration
-OPENAI_API_KEY=sk-your-actual-bob-api-key-here
-OPENAI_API_BASE=https://api.cline.bot/v1
-
-# AI Model Configuration
-OPENAI_MODEL=claude-3-5-sonnet-20241022
-OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-```
-
 #### 2.4 Save the File
 
 **Important:** Save the `.env` file after making changes!
@@ -141,20 +128,6 @@ Should see:
 ## 🔍 WHAT EACH PLACEHOLDER MEANS
 
 ### In `.env` File:
-
-```env
-# This is YOUR Bob API key from Cline
-OPENAI_API_KEY=PUT_YOUR_BOB_API_KEY_HERE
-
-# This is Bob's API endpoint (already correct)
-OPENAI_API_BASE=https://api.cline.bot/v1
-
-# This is the Claude model Bob uses (already correct)
-OPENAI_MODEL=claude-3-5-sonnet-20241022
-
-# This is for embeddings (may still use OpenAI)
-OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-```
 
 ### What You Need to Change:
 

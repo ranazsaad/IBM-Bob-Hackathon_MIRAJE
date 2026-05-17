@@ -122,17 +122,15 @@ function MermaidRenderer({ content }: { content: string }) {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    const match = content.match(/```mermaid\n([\s\S]*?)\n```/);
-    const diagram = match ? match[1] : content;
+    // Strip markdown formatting if it somehow slipped in
+    const diagram = content.replace(/```mermaid\n?/g, '').replace(/```\n?/g, '');
 
     import("mermaid").then((m) => {
-      m.default.initialize({ startOnLoad: false, theme: "dark", securityLevel: "loose" });
-      m.default.render("mermaid-svg-" + Date.now(), diagram)
+      m.default.initialize({ startOnLoad: false, theme: "dark", securityLevel: "loose", fontFamily: "var(--font-inter)" });
+      m.default.render("mermaid-svg-" + Date.now() + Math.floor(Math.random() * 1000), diagram)
         .then(({ svg }) => {
           if (ref.current) {
-            // Remove any error messages from mermaid output
-            const cleanSvg = svg.replace(/Syntax error in text[\s\S]*?mermaid version[\s\S]*?$/i, '');
-            ref.current.innerHTML = cleanSvg;
+            ref.current.innerHTML = svg;
             setRendered(true);
           }
         })
@@ -142,23 +140,145 @@ function MermaidRenderer({ content }: { content: string }) {
 
   if (error) {
     return (
-      <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
-        <pre className="text-sm text-gray-300 overflow-auto">{content}</pre>
+      <div className="bg-[#1e1e1e] p-4 text-red-400 font-mono text-xs overflow-auto border-t border-gray-700/60">
+        Error rendering diagram. Please view raw markdown.
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-900 rounded-xl border border-gray-700 p-6 overflow-auto">
-      <div ref={ref} className="flex justify-center [&_text]:!fill-gray-200 [&_text]:!font-medium" />
+    <div className="bg-gray-800/30 rounded-xl p-6 overflow-auto flex justify-center min-h-[150px]">
+      <div ref={ref} className="flex justify-center w-full" />
       {!rendered && (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+        <div className="flex items-center justify-center h-full w-full">
+          <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
         </div>
       )}
     </div>
   );
 }
+const customMarkdownComponents: any = {
+  pre({ children }: any) {
+    return (
+      <div className="bg-[#1e1e1e] rounded-xl border border-gray-700/60 my-6 overflow-hidden shadow-xl shadow-black/20">
+        {children}
+      </div>
+    );
+  },
+  code({ node, inline, className, children, ...props }: any) {
+    const match = /language-(\w+)/.exec(className || '');
+    const language = match ? match[1] : '';
+    const isInline = inline || !match;
+    
+    if (!isInline && language === 'mermaid') {
+      return <MermaidRenderer content={String(children)} />;
+    }
+    
+    if (!isInline && language) {
+      return (
+        <div className="relative group">
+          <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <button
+              onClick={() => navigator.clipboard.writeText(String(children).replace(/\n$/, ''))}
+              className="flex items-center gap-1.5 text-xs font-medium text-gray-300 hover:text-white px-2.5 py-1.5 bg-gray-700/80 hover:bg-gray-600 rounded-md transition-colors shadow-lg backdrop-blur-sm border border-gray-600"
+            >
+              <Copy className="w-3 h-3" />
+              Copy
+            </button>
+          </div>
+          <SyntaxHighlighter
+            style={vscDarkPlus}
+            language={language}
+            PreTag="div"
+            customStyle={{
+              margin: 0,
+              background: 'transparent',
+              padding: '1.25rem',
+              fontSize: '13px',
+              lineHeight: '1.6',
+            }}
+            {...props}
+          >
+            {String(children).replace(/\n$/, '')}
+          </SyntaxHighlighter>
+        </div>
+      );
+    } else if (!isInline) {
+      // Multi-line code block without a language specified
+      return (
+        <div className="relative group">
+          <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <button
+              onClick={() => navigator.clipboard.writeText(String(children).replace(/\n$/, ''))}
+              className="flex items-center gap-1.5 text-xs font-medium text-gray-300 hover:text-white px-2.5 py-1.5 bg-gray-700/80 hover:bg-gray-600 rounded-md transition-colors shadow-lg backdrop-blur-sm border border-gray-600"
+            >
+              <Copy className="w-3 h-3" />
+              Copy
+            </button>
+          </div>
+          <div className="p-5 overflow-x-auto text-[13px] leading-[1.6] text-gray-300 font-mono">
+            {children}
+          </div>
+        </div>
+      );
+    }
+    
+    // Inline code styling
+    return (
+      <code className="bg-indigo-900/30 text-indigo-300 px-1.5 py-0.5 rounded-md text-[13px] font-mono border border-indigo-700/30" {...props}>
+        {children}
+      </code>
+    );
+  },
+  h1({ children }: any) {
+    return <h1 className="font-display text-2xl md:text-3xl font-extrabold text-white mt-8 mb-5 border-b border-gray-800 pb-3 tracking-tight">{children}</h1>;
+  },
+  h2({ children }: any) {
+    return <h2 className="font-display text-xl md:text-2xl font-bold text-gray-100 mt-7 mb-4 tracking-tight">{children}</h2>;
+  },
+  h3({ children }: any) {
+    return <h3 className="font-display text-lg font-semibold text-indigo-300 mt-6 mb-3">{children}</h3>;
+  },
+  p({ children }: any) {
+    return <p className="text-[15px] leading-relaxed text-gray-300 mb-5">{children}</p>;
+  },
+  ul({ children }: any) {
+    return <ul className="list-disc list-outside ml-5 text-gray-300 space-y-2 mb-5 text-[15px] marker:text-indigo-500">{children}</ul>;
+  },
+  ol({ children }: any) {
+    return <ol className="list-decimal list-outside ml-5 text-gray-300 space-y-2 mb-5 text-[15px] marker:text-indigo-500">{children}</ol>;
+  },
+  li({ children }: any) {
+    return <li className="pl-1 leading-relaxed">{children}</li>;
+  },
+  strong({ children }: any) {
+    return <strong className="font-semibold text-white">{children}</strong>;
+  },
+  a({ href, children }: any) {
+    return <a href={href} className="text-blue-400 hover:text-blue-300 underline underline-offset-4 decoration-blue-500/30 hover:decoration-blue-400 transition-colors" target="_blank" rel="noopener noreferrer">{children}</a>;
+  },
+  blockquote({ children }: any) {
+    return <blockquote className="border-l-[3px] border-indigo-500/50 bg-indigo-900/10 py-2 pr-4 pl-5 italic text-gray-400 my-6 rounded-r-lg">{children}</blockquote>;
+  },
+  table({ children }: any) {
+    return <div className="overflow-x-auto my-6 rounded-xl border border-gray-700/60 shadow-lg shadow-black/10"><table className="min-w-full divide-y divide-gray-700/60">{children}</table></div>;
+  },
+  thead({ children }: any) {
+    return <thead className="bg-gray-800/80 backdrop-blur-sm">{children}</thead>;
+  },
+  tbody({ children }: any) {
+    return <tbody className="divide-y divide-gray-700/60 bg-[#1e1e1e]/50">{children}</tbody>;
+  },
+  tr({ children }: any) {
+    return <tr className="hover:bg-gray-800/30 transition-colors">{children}</tr>;
+  },
+  th({ children }: any) {
+    return <th className="px-5 py-3 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">{children}</th>;
+  },
+  td({ children }: any) {
+    return <td className="px-5 py-3 text-sm text-gray-300 leading-relaxed">{children}</td>;
+  },
+};
 
 function ResultDisplay({ item, mode }: { item: QueryHistoryItem; mode: AIMode }) {
   const [copied, setCopied] = useState(false);
@@ -181,15 +301,12 @@ function ResultDisplay({ item, mode }: { item: QueryHistoryItem; mode: AIMode })
     URL.revokeObjectURL(url);
   };
 
-  const isMermaid = item.result.content.includes("```mermaid") ||
+  const isMermaid = item.result.content.includes("```mermaid") || 
                     item.result.content.includes("graph ") ||
                     item.result.content.includes("sequenceDiagram") ||
                     item.result.content.includes("classDiagram");
 
-  // Only treat as pure code if it's explicitly marked as code/config AND doesn't contain markdown formatting
-  const isCode = (item.result.type === "code" || item.result.type === "config") &&
-                 !item.result.content.includes("```") &&
-                 !item.result.content.includes("#");
+  const isCode = item.result.type === "code" || item.result.type === "config";
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
@@ -233,9 +350,17 @@ function ResultDisplay({ item, mode }: { item: QueryHistoryItem; mode: AIMode })
       </div>
 
       {/* Main content */}
-      {isMermaid && viewMode === "rendered" ? (
-        <MermaidRenderer content={item.result.content} />
-      ) : isCode && viewMode === "rendered" ? (
+      {viewMode === "raw" ? (
+        <div className="rounded-xl overflow-hidden border border-gray-700/60 h-96">
+          <MonacoEditor
+            height="100%"
+            defaultLanguage="markdown"
+            value={item.result.content}
+            theme="vs-dark"
+            options={{ readOnly: true, minimap: { enabled: false }, wordWrap: "on" }}
+          />
+        </div>
+      ) : isCode ? (
         <div className="rounded-xl overflow-hidden border border-gray-700 h-96">
           <MonacoEditor
             height="100%"
@@ -253,201 +378,48 @@ function ResultDisplay({ item, mode }: { item: QueryHistoryItem; mode: AIMode })
           />
         </div>
       ) : (
-        <div className="bg-gray-900/50 rounded-xl border border-gray-700/50 p-8 max-h-[70vh] overflow-auto">
-          <div className="markdown-body">
-            <style dangerouslySetInnerHTML={{__html: `
-              .markdown-body * {
-                background: transparent !important;
-                background-color: transparent !important;
-              }
-              .markdown-body code {
-                background: rgba(31, 41, 55, 0.6) !important;
-                background-color: rgba(31, 41, 55, 0.6) !important;
-              }
-              .markdown-body pre {
-                background: transparent !important;
-                background-color: transparent !important;
-              }
-              .markdown-body pre code {
-                background: transparent !important;
-                background-color: transparent !important;
-              }
-              .markdown-body pre > div {
-                background: #0d1117 !important;
-                background-color: #0d1117 !important;
-              }
-            `}} />
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-              code({ node, className, children, ...props }: any) {
-                const match = /language-(\w+)/.exec(className || '');
-                const language = match ? match[1] : '';
-                const codeString = String(children).replace(/\n$/, '');
-                const inline = !className || !language;
-                
-                // Block code with syntax highlighting
-                if (!inline && language) {
-                  return (
-                    <div className="relative group my-6 not-prose">
-                      <div className="absolute right-3 top-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(codeString);
-                          }}
-                          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white px-2.5 py-1.5 bg-gray-800/90 hover:bg-gray-700 rounded-md transition-colors backdrop-blur-sm"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                          Copy
-                        </button>
-                      </div>
-                      <SyntaxHighlighter
-                        style={vscDarkPlus as any}
-                        language={language}
-                        PreTag="div"
-                        customStyle={{
-                          margin: 0,
-                          borderRadius: '0.75rem',
-                          background: '#0d1117',
-                          padding: '1.25rem',
-                          border: '1px solid rgba(55, 65, 81, 0.5)',
-                          fontSize: '0.875rem',
-                          lineHeight: '1.6',
-                        }}
-                        showLineNumbers={codeString.split('\n').length > 5}
-                        wrapLines={true}
-                        {...props}
-                      >
-                        {codeString}
-                      </SyntaxHighlighter>
-                    </div>
-                  );
-                }
-                
-                // Inline code
-                return (
-                  <code className="bg-gray-800/60 text-cyan-300 px-2 py-0.5 rounded-md text-sm font-mono border border-gray-700/50" {...props}>
-                    {children}
-                  </code>
-                );
-              },
-              pre({ children }) {
-                return <>{children}</>;
-              },
-              h1({ children }) {
-                return <h1 className="text-3xl font-bold text-white mt-8 mb-5 pb-3 border-b border-gray-700/50 first:mt-0">{children}</h1>;
-              },
-              h2({ children }) {
-                return <h2 className="text-2xl font-bold text-white mt-8 mb-4 pb-2 border-b border-gray-700/30">{children}</h2>;
-              },
-              h3({ children }) {
-                return <h3 className="text-xl font-semibold text-white mt-6 mb-3">{children}</h3>;
-              },
-              h4({ children }) {
-                return <h4 className="text-lg font-semibold text-gray-200 mt-5 mb-2">{children}</h4>;
-              },
-              h5({ children }) {
-                return <h5 className="text-base font-semibold text-gray-300 mt-4 mb-2">{children}</h5>;
-              },
-              h6({ children }) {
-                return <h6 className="text-sm font-semibold text-gray-400 mt-3 mb-2">{children}</h6>;
-              },
-              p({ children }) {
-                return <p className="text-gray-300 leading-relaxed mb-4 text-[15px]">{children}</p>;
-              },
-              ul({ children }) {
-                return <ul className="list-disc ml-6 text-gray-300 space-y-2 mb-5 marker:text-gray-500">{children}</ul>;
-              },
-              ol({ children }) {
-                return <ol className="list-decimal ml-6 text-gray-300 space-y-2 mb-5 marker:text-gray-500">{children}</ol>;
-              },
-              li({ children }) {
-                return <li className="text-gray-300 leading-relaxed pl-2">{children}</li>;
-              },
-              a({ href, children }) {
-                return (
-                  <a
-                    href={href}
-                    className="text-blue-400 hover:text-blue-300 underline decoration-blue-400/30 hover:decoration-blue-300 transition-colors"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {children}
-                  </a>
-                );
-              },
-              blockquote({ children }) {
-                return (
-                  <blockquote className="border-l-4 border-blue-500/50 bg-gray-800/30 pl-5 pr-4 py-3 italic text-gray-400 my-5 rounded-r-lg">
-                    {children}
-                  </blockquote>
-                );
-              },
-              strong({ children }) {
-                return <strong className="font-semibold text-white">{children}</strong>;
-              },
-              em({ children }) {
-                return <em className="italic text-gray-300">{children}</em>;
-              },
-              hr() {
-                return <hr className="border-gray-700/50 my-8" />;
-              },
-              table({ children }) {
-                return (
-                  <div className="overflow-x-auto my-6 rounded-lg border border-gray-700/50">
-                    <table className="min-w-full divide-y divide-gray-700/50">
-                      {children}
-                    </table>
-                  </div>
-                );
-              },
-              thead({ children }) {
-                return <thead className="bg-gray-800/50">{children}</thead>;
-              },
-              tbody({ children }) {
-                return <tbody className="divide-y divide-gray-700/30 bg-gray-900/20">{children}</tbody>;
-              },
-              tr({ children }) {
-                return <tr className="hover:bg-gray-800/30 transition-colors">{children}</tr>;
-              },
-              th({ children }) {
-                return <th className="px-5 py-3 text-left text-sm font-semibold text-white">{children}</th>;
-              },
-              td({ children }) {
-                return <td className="px-5 py-3 text-sm text-gray-300">{children}</td>;
-              },
-            }}
+        <div className="bg-gray-900/80 rounded-2xl border border-gray-700/60 p-6 md:p-8 max-h-[65vh] overflow-auto max-w-none custom-scrollbar">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
+            components={customMarkdownComponents}
           >
-              {item.result.content}
-            </ReactMarkdown>
-          </div>
+            {item.result.content}
+          </ReactMarkdown>
         </div>
       )}
 
       {/* Explanation */}
       {item.result.explanation && (
-        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-1 h-4 bg-blue-500 rounded-full"></div>
-            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Explanation</p>
+        <div className="bg-indigo-950/20 rounded-2xl border border-indigo-500/20 p-6 mt-4 shadow-lg">
+          <div className="flex items-center gap-2 mb-4 border-b border-indigo-500/20 pb-3">
+            <Sparkles className="w-4 h-4 text-indigo-400" />
+            <h4 className="text-sm font-display font-semibold text-indigo-300 uppercase tracking-widest">
+              Explanation
+            </h4>
           </div>
-          <div className="prose prose-invert prose-sm max-w-none">
+          <div className="text-[15px] leading-relaxed text-gray-300 whitespace-pre-wrap">
             <ReactMarkdown
-              className="text-sm text-gray-300 leading-relaxed space-y-3"
+              remarkPlugins={[remarkGfm]}
               components={{
-                p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
-                ul: ({ children }) => <ul className="list-disc list-inside space-y-2 ml-2">{children}</ul>,
-                ol: ({ children }) => <ol className="list-decimal list-inside space-y-2 ml-2">{children}</ol>,
-                li: ({ children }) => <li className="text-gray-300 leading-relaxed">{children}</li>,
-                strong: ({ children }) => <strong className="text-blue-400 font-semibold">{children}</strong>,
-                em: ({ children }) => <em className="text-cyan-400">{children}</em>,
-                code: ({ children }) => (
-                  <code className="bg-gray-900/60 text-cyan-400 px-1.5 py-0.5 rounded text-xs font-mono">
-                    {children}
-                  </code>
-                ),
-                h3: ({ children }) => <h3 className="text-base font-semibold text-gray-200 mt-4 mb-2">{children}</h3>,
-                h4: ({ children }) => <h4 className="text-sm font-semibold text-gray-300 mt-3 mb-2">{children}</h4>,
+                p({ children }) {
+                  return <p className="mb-4 last:mb-0">{children}</p>;
+                },
+                ul({ children }) {
+                  return <ul className="list-disc list-outside ml-5 space-y-2 mb-4 marker:text-indigo-500">{children}</ul>;
+                },
+                ol({ children }) {
+                  return <ol className="list-decimal list-outside ml-5 space-y-2 mb-4 marker:text-indigo-500">{children}</ol>;
+                },
+                li({ children }) {
+                  return <li className="pl-1 leading-relaxed">{children}</li>;
+                },
+                strong({ children }) {
+                  return <strong className="font-semibold text-white">{children}</strong>;
+                },
+                code({ inline, children, ...props }: any) {
+                  return <code className="bg-indigo-900/40 text-indigo-200 px-1.5 py-0.5 rounded text-[13px] font-mono" {...props}>{children}</code>;
+                }
               }}
             >
               {item.result.explanation}
@@ -765,7 +737,9 @@ function WorkspaceContent() {
               <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${modeConfig.gradient} flex items-center justify-center`}>
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-white">DevPilot AI</span>
+              <span className="font-display text-xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent tracking-tight">
+                Bob By Your Side
+              </span>
             </div>
             <div className="hidden md:flex items-center gap-2 pl-4 border-l border-gray-700">
               {workspace.type === "github" ? (
@@ -922,8 +896,8 @@ function WorkspaceContent() {
                     <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
                       <BookOpen className="w-4 h-4 text-blue-400" /> Step-by-Step Guide
                     </h3>
-                    <div className="prose prose-sm prose-invert max-w-none bg-gray-800/50 p-4 rounded-xl border border-gray-700/50">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{setupGuide}</ReactMarkdown>
+                    <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700/50 max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={customMarkdownComponents}>{setupGuide}</ReactMarkdown>
                     </div>
                   </div>
 
@@ -953,8 +927,8 @@ function WorkspaceContent() {
                     {debugResult && (
                       <div className="mt-4 p-4 bg-gray-800 border border-amber-700/40 rounded-xl">
                         <h4 className="text-xs font-semibold text-amber-400 mb-2 uppercase tracking-wider">Bob's Required Action</h4>
-                        <div className="prose prose-sm prose-invert max-w-none">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{debugResult}</ReactMarkdown>
+                        <div className="max-w-none">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={customMarkdownComponents}>{debugResult}</ReactMarkdown>
                         </div>
                       </div>
                     )}

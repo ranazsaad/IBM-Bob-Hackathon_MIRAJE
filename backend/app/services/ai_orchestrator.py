@@ -1,23 +1,39 @@
-"""AI Orchestrator - coordinates AI agents and RAG using IBM watsonx.ai"""
+"""AI Orchestrator - coordinates AI agents and RAG using IBM watsonx.ai or OpenAI fallback"""
 
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
+from openai import AsyncOpenAI
 
 from app.config import settings
 from app.services.rag_engine import RAGEngine
-from app.services.ibm_watsonx_client import create_async_watsonx_client
 from app.api.schemas.responses import ModeQueryResponse
 
 
 class AIOrchestrator:
-    """Orchestrates AI agents and RAG pipeline using IBM Granite models"""
+    """Orchestrates AI agents and RAG pipeline using IBM Granite models or OpenAI fallback"""
     
     def __init__(self, db: Session):
-        """Initialize AI orchestrator with IBM watsonx.ai"""
+        """Initialize AI orchestrator with IBM watsonx.ai or OpenAI fallback"""
         self.db = db
         self.rag_engine = RAGEngine(db)
-        # Use IBM watsonx.ai client with Granite models
-        self.client = create_async_watsonx_client()
+        self.use_watsonx = settings.watsonx_available
+        
+        if self.use_watsonx:
+            try:
+                from app.services.ibm_watsonx_client import create_async_watsonx_client
+                self.client = create_async_watsonx_client()
+                print("[AIOrchestrator] Using IBM watsonx.ai")
+            except Exception as e:
+                print(f"[AIOrchestrator] WatsonX init failed ({e}), falling back to OpenAI")
+                self.use_watsonx = False
+                self._init_openai()
+        else:
+            self._init_openai()
+    
+    def _init_openai(self):
+        """Initialize OpenAI client as fallback"""
+        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        print("[AIOrchestrator] Using OpenAI as fallback")
     
     async def process_query(
         self,
@@ -96,7 +112,7 @@ class AIOrchestrator:
         code_context = self._format_rag_context(rag_context)
         metadata = workspace_summary.get("metadata", {})
         
-        system_prompt = """You are DevPilot AI's Illustration Mode expert. Generate Mermaid diagrams and visual explanations for codebases.
+        system_prompt = """You are Bob's Illustration Mode expert. Generate Mermaid diagrams and visual explanations for codebases.
 
 Your responses should include:
 1. Mermaid diagram syntax (flowchart, sequence, class, or architecture diagram)
@@ -155,7 +171,7 @@ Generate a Mermaid diagram and explanation for this request."""
         code_context = self._format_rag_context(rag_context)
         metadata = workspace_summary.get("metadata", {})
         
-        system_prompt = """You are DevPilot AI's Development Mode expert. Provide code reviews, refactoring suggestions, and architectural improvements.
+        system_prompt = """You are Bob's Development Mode expert. Provide code reviews, refactoring suggestions, and architectural improvements.
 
 Focus on:
 - Code quality and best practices
@@ -213,7 +229,7 @@ Provide detailed analysis and recommendations."""
         # Determine test framework
         test_framework = self._get_test_framework(language)
         
-        system_prompt = f"""You are DevPilot AI's Testing Mode expert. Generate comprehensive unit and integration tests.
+        system_prompt = f"""You are Bob's Testing Mode expert. Generate comprehensive unit and integration tests.
 
 Language: {language}
 Test Framework: {test_framework}
@@ -273,7 +289,7 @@ Generate comprehensive tests."""
         metadata = workspace_summary.get("metadata", {})
         language = metadata.get('language', 'Python')
         
-        system_prompt = """You are DevPilot AI's Deployment Mode expert. Generate production-ready infrastructure configurations.
+        system_prompt = """You are Bob's Deployment Mode expert. Generate production-ready infrastructure configurations.
 
 Generate:
 - Dockerfile (optimized, multi-stage)
@@ -325,7 +341,7 @@ Generate complete deployment configuration."""
         code_context = self._format_rag_context(rag_context)
         metadata = workspace_summary.get("metadata", {})
         
-        system_prompt = """You are DevPilot AI's Documentation Mode expert. Generate clear, comprehensive documentation.
+        system_prompt = """You are Bob's Documentation Mode expert. Generate clear, comprehensive documentation.
 
 Generate:
 - README files with setup instructions

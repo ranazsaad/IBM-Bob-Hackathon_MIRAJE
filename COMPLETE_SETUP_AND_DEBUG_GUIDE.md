@@ -54,9 +54,6 @@ bob_prod_bob-user_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
    ```
 
 2. **Find line 6:**
-   ```env
-   OPENAI_API_KEY=bob_prod_bob-user_44Er6d67wHFCVCY4C7YsV2V3akkwRYA9fD5nfugUfZRdFz7ZDuvFEKYGL9fswiyttRD4tgjzzPgm6R3X6GLBaHSi_HsHgYNbepQUhB3zPzMwLP8br7hoESeP64Eo5A2RVLZef
-   ```
 
 3. **Replace with YOUR API key:**
    ```env
@@ -154,9 +151,7 @@ pip install -r requirements.txt
 # ============================================================
 # BOB (Cline) API — REQUIRED
 # ============================================================
-OPENAI_API_KEY=bob_prod_YOUR_KEY_HERE  # ← CHANGE THIS!
-OPENAI_API_BASE=https://api.cline.bot/v1
-OPENAI_MODEL=claude-3-5-sonnet-20241022
+
 
 # ============================================================
 # Database Configuration — Already Set

@@ -175,7 +175,7 @@ class Conversation(Base):
     created_at = Column(DateTime)
     last_updated = Column(DateTime)
     
-    messages = relationship("Message", back_populates="conversation")
+    messages = relationship("Message", back_Bobulates="conversation")
 
 class Message(Base):
     __tablename__ = "messages"
@@ -187,7 +187,7 @@ class Message(Base):
     metadata = Column(JSON)
     timestamp = Column(DateTime)
     
-    conversation = relationship("Conversation", back_populates="messages")
+    conversation = relationship("Conversation", back_Bobulates="messages")
 ```
 
 **File:** `backend/app/api/routes/conversations.py`
@@ -370,7 +370,7 @@ export function FileTree({ workspaceId }: { workspaceId: string }) {
               {isExpanded ? '▼' : '▶'}
             </span>
           )}
-          <FileIcon type={node.type} extension={node.name.split('.').pop()} />
+          <FileIcon type={node.type} extension={node.name.split('.').Bob()} />
           <span className="file-name">{node.name}</span>
           {node.type === 'file' && (
             <span className="file-size">{formatSize(node.size)}</span>

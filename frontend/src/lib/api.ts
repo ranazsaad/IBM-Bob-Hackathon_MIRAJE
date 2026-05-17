@@ -66,6 +66,21 @@ export interface MessageCreate {
   metadata?: Record<string, any>;
 }
 
+export interface ChatMessage {
+  role: string;
+  content: string;
+}
+
+export interface ChatRequest {
+  message: string;
+  conversation_history: ChatMessage[];
+}
+
+export interface ChatResponse {
+  response: string;
+  suggestions: string[];
+}
+
 class APIClient {
   private baseURL: string;
 
@@ -78,7 +93,7 @@ class APIClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
-    
+
     const config: RequestInit = {
       ...options,
       headers: {
@@ -89,7 +104,7 @@ class APIClient {
 
     try {
       const response = await fetch(url, config);
-      
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(error.detail || `HTTP ${response.status}: ${response.statusText}`);
@@ -274,6 +289,17 @@ class APIClient {
       body: JSON.stringify({
         workspace_id: workspaceId,
         error_text: errorText,
+      }),
+    });
+  }
+
+  // Chat with Bob
+  async chatWithBob(message: string, conversationHistory: ChatMessage[] = []): Promise<ChatResponse> {
+    return this.request("/chat", {
+      method: "POST",
+      body: JSON.stringify({
+        message,
+        conversation_history: conversationHistory,
       }),
     });
   }

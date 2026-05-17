@@ -111,7 +111,6 @@ pip install -r requirements.txt
 
 **Expected:** ~45 packages will be installed including:
 - FastAPI, Uvicorn
-- OpenAI SDK
 - ChromaDB (vector database)
 - SQLAlchemy (database ORM)
 - LangChain (AI orchestration)

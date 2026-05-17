@@ -13,9 +13,6 @@ __pycache__/
 .env.local
 .env.*.local
 *.env
-.env
-.env.bak
-*.env
 
 # IDE
 .vscode/

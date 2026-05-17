@@ -243,7 +243,7 @@ async function checkNetworkConnectivity() {
 # Check if process is running
 ps aux | grep node  # For Node.js
 ps aux | grep python  # For Python
-ps aux | grep uvicorn  # For FastAPI
+ps aux | grep uvicorn  # For Fast
 
 # Check server logs
 tail -f backend/logs/server.log
@@ -303,7 +303,7 @@ async def health_check():
 ```bash
 # PM2 for production
 pm2 start server.js --name api-server --watch
-pm2 logs api-server
+pm2 logs -server
 pm2 restart api-server
 ```
 
@@ -408,7 +408,7 @@ export class AuthService {
     if (!token) return null;
     
     try {
-      const response = await fetch(`${API_URL}/auth/refresh`, {
+      const response = await fetch(`${_URL}/auth/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -493,7 +493,7 @@ function authenticateToken(req, res, next) {
 }
 
 // Usage
-app.get('/api/protected', authenticateToken, (req, res) => {
+app.get('//protected', authenticateToken, (req, res) => {
   res.json({ data: 'Protected data', user: req.user });
 });
 ```
