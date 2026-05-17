@@ -1,4 +1,4 @@
-# IBM-Bob-Hackathon-MIRAJE🚀
+# IBM-Bob-Hackathon-MIRAJE
 
 **Your AI Engineering Teammate for Hackathons and Beyond**
 
@@ -16,11 +16,11 @@ An AI-powered developer workspace that analyzes codebases and meeting transcript
 
 DevPilot AI transforms how developers interact with codebases by providing **5 specialized AI modes** that act as your engineering teammates:
 
-- 🎨 **Illustration Mode** - Visual architecture diagrams, dependency maps, component relationships
-- 💻 **Development Mode** - Code reviews, refactoring suggestions, security analysis
-- 🧪 **Testing Mode** - Automated test generation with coverage analysis
-- 🚀 **Deployment Mode** - Docker, CI/CD pipelines, Kubernetes configurations
-- 📚 **Documentation Mode** - README, API docs, onboarding guides
+- **Illustration Mode** - Visual architecture diagrams, dependency maps, component relationships
+-  **Development Mode** - Code reviews, refactoring suggestions, security analysis
+- **Testing Mode** - Automated test generation with coverage analysis
+-  **Deployment Mode** - Docker, CI/CD pipelines, Kubernetes configurations
+-  **Documentation Mode** - README, API docs, onboarding guides
 
 **Plus:** Meeting transcript processing that extracts requirements, generates user stories, and creates engineering tickets.
 
